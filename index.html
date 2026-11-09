@@ -10,27 +10,1618 @@
   <meta name="apple-mobile-web-app-title" content="Sổ Điểm">
   <title>Sổ Điểm Bài</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <style>
+:root {
+  --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --bg: #eef2ef;
+  --surface: #ffffff;
+  --surface-2: #f4f7f5;
+  --line: #dde4df;
+  --text: #17211c;
+  --muted: #66746c;
+  --primary: #0b5d45;
+  --primary-2: #0e7a5a;
+  --on-primary: #ffffff;
+  --pos: #0f8a4f;
+  --pos-bg: #e3f5ea;
+  --neg: #c0392b;
+  --neg-bg: #fbe9e7;
+  --warn: #b45309;
+  --warn-bg: #fdf0dc;
+  --gold: #d4a017;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 4px 14px rgba(0, 0, 0, .05);
+  --head-bg: #0b5d45;
+  --head-text: #ffffff;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1411;
+    --surface: #16201b;
+    --surface-2: #1d2a24;
+    --line: #2a3a32;
+    --text: #e7efe9;
+    --muted: #93a39a;
+    --primary: #1fa37a;
+    --primary-2: #27b98b;
+    --on-primary: #04130d;
+    --pos: #4ade80;
+    --pos-bg: #13301f;
+    --neg: #f87171;
+    --neg-bg: #3a1a18;
+    --warn: #fbbf24;
+    --warn-bg: #3a2c10;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --head-bg: #0a3326;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  overscroll-behavior-y: contain;
+}
+body.no-scroll { overflow: hidden; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { opacity: .4; cursor: default; }
+h1, h2, h3, h4, p { margin: 0; }
+
+.screen { max-width: 640px; margin: 0 auto; min-height: 100vh; }
+.screen.has-fab { padding-bottom: 96px; }
+.content { padding: 16px; }
+
+/* ---------- Layout helpers ---------- */
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.stack-sm { display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; align-items: center; }
+.row.between { justify-content: space-between; gap: 8px; }
+.row.gap { gap: 10px; }
+.row.gap > .btn { flex: 1; }
+.gap-sm { gap: 6px; }
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 13px; }
+.neg-text { color: var(--neg); font-weight: 700; }
+.warn-text { color: var(--warn); }
+
+/* ---------- Top bar ---------- */
+.sticky-head { position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 10px rgba(0, 0, 0, .15); }
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: calc(var(--sat) + 10px) 12px 10px;
+  background: var(--head-bg); color: var(--head-text);
+}
+.topbar-title { flex: 1; min-width: 0; }
+.topbar h1 { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar p { font-size: 12px; opacity: .8; }
+.topbar .icon-btn { color: var(--head-text); background: rgba(255, 255, 255, .12); }
+.logo { width: 40px; height: 40px; display: grid; place-items: center; font-size: 24px; background: rgba(255, 255, 255, .12); border-radius: 12px; }
+
+/* ---------- Totals (pinned) ---------- */
+.totals {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 6px;
+  padding: 8px 12px 10px; background: var(--head-bg);
+}
+.totals.many { grid-template-columns: repeat(5, 1fr); }
+.total {
+  background: rgba(255, 255, 255, .1); color: var(--head-text);
+  border-radius: 10px; padding: 6px 6px 5px; text-align: center; min-width: 0;
+  border: 1.5px solid transparent; position: relative;
+}
+.total .tname { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.total .tval { display: block; font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.totals.many .tval { font-size: 16px; }
+.total.pos .tval { color: #8ef0b4; }
+.total.neg .tval { color: #ffb4a8; }
+.total.leader { border-color: var(--gold); }
+.total.leader::before { content: "👑"; position: absolute; top: -9px; right: -2px; font-size: 13px; }
+.total .seat-no { background: rgba(255, 255, 255, .25); color: inherit; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1.5px solid transparent;
+  background: var(--surface-2); font-weight: 600;
+}
+.btn.primary { background: var(--primary); color: var(--on-primary); }
+.btn.primary:active { background: var(--primary-2); }
+.btn.outline { background: transparent; border-color: var(--line); }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
+.btn.block { width: 100%; }
+.btn.lg { min-height: 54px; font-size: 17px; }
+.btn.sm { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.icon-btn {
+  width: 40px; height: 40px; flex: none; border-radius: 12px; border: 0;
+  background: var(--surface-2); display: grid; place-items: center; font-size: 18px;
+}
+.icon-btn.sm { width: 34px; height: 34px; font-size: 14px; background: transparent; }
+
+.fab-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 20;
+  bottom: calc(var(--sab) + 18px); display: flex; gap: 10px; width: max-content; max-width: calc(100% - 32px);
+}
+.fab {
+  min-height: 54px; padding: 0 24px; border: 0; border-radius: 999px; white-space: nowrap;
+  background: var(--primary); color: var(--on-primary); font-weight: 700; font-size: 17px;
+  box-shadow: 0 6px 20px rgba(11, 93, 69, .45);
+}
+.fab.secondary { padding: 0 18px; background: var(--surface); color: var(--text); border: 1.5px solid var(--line); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.round-card.side-entry { padding: 10px 12px; border-style: dashed; }
+
+/* ---------- Cards ---------- */
+.card-section, .round-card, .game-card, .mode-card, .banner {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.card-section { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.card-section h3 { font-size: 15px; }
+.section-title { font-size: 14px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+.game-card, .mode-card { width: 100%; text-align: left; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.game-card-name { font-weight: 700; font-size: 17px; }
+.mini-totals { display: flex; flex-wrap: wrap; gap: 6px; }
+.mini { font-size: 13px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); }
+.mini.pos b { color: var(--pos); }
+.mini.neg b { color: var(--neg); }
+.badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--pos-bg); color: var(--primary); white-space: nowrap; }
+
+.mode-card { flex-direction: row; align-items: center; gap: 14px; }
+.mode-icon { width: 48px; height: 48px; flex: none; display: grid; place-items: center; font-size: 26px; border-radius: 12px; background: var(--pos-bg); color: var(--primary); }
+.mode-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.mode-text small { color: var(--muted); }
+
+.empty { text-align: center; padding: 40px 16px; color: var(--muted); }
+.empty-icon { font-size: 56px; opacity: .6; }
+
+/* ---------- Banner / seats ---------- */
+.banner { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.banner-title { font-size: 12px; color: var(--muted); font-weight: 600; }
+.seat-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.seat-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+.arrow { color: var(--primary); font-weight: 700; }
+.arrow.loop { font-size: 18px; }
+.seat-no {
+  font-style: normal; display: inline-grid; place-items: center; flex: none;
+  width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700;
+  background: var(--primary); color: var(--on-primary);
+}
+.seat-no.lg { width: 30px; height: 30px; font-size: 14px; }
+
+/* ---------- Rounds ---------- */
+.round-card { padding: 12px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+.round-card:active { background: var(--surface-2); }
+.round-head b { font-size: 15px; }
+.details { font-size: 13px; color: var(--muted); }
+.delta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; }
+.delta { border-radius: 10px; padding: 5px 6px; background: var(--surface-2); text-align: center; min-width: 0; }
+.delta .dname { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.delta b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.delta.pos { background: var(--pos-bg); } .delta.pos b { color: var(--pos); }
+.delta.neg { background: var(--neg-bg); } .delta.neg b { color: var(--neg); }
+
+/* ---------- Segmented ---------- */
+.seg { display: flex; gap: 6px; }
+.seg-wrap { flex-wrap: wrap; }
+.seg-btn {
+  flex: 1 1 0; min-height: 44px; min-width: 0; padding: 6px 10px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--surface); font-weight: 600; font-size: 15px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15;
+}
+.seg-wrap .seg-btn { flex: 1 1 auto; }
+.seg-btn small { font-weight: 400; font-size: 11px; color: var(--muted); }
+.seg-btn.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.seg-btn.on small { color: inherit; opacity: .85; }
+.seg-btn.tone-warn.on { background: var(--warn); border-color: var(--warn); color: #fff; }
+.seg-btn.tone-win.on { background: var(--gold); border-color: var(--gold); color: #1d1600; }
+.seg-col { flex-direction: column; }
+.seg-fill .seg-btn { padding: 6px 2px; font-size: 14px; }
+.seg-cards { display: grid; grid-template-columns: repeat(5, 1fr); }
+.seg-cards .seg-btn { padding: 6px 0; font-size: 16px; }
+
+.pick-row { display: flex; flex-direction: column; gap: 6px; }
+.pick-name { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.loser-row { padding-top: 10px; border-top: 1px dashed var(--line); }
+.loser-row:first-of-type { border-top: 0; padding-top: 0; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+.picker { background: var(--surface-2); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.picker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.picker-btn { border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px; text-align: left; display: flex; flex-direction: column; gap: 2px; min-height: 56px; }
+.picker-btn small { color: var(--muted); font-size: 12px; }
+.picker-btn:active { border-color: var(--primary); }
+.event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.event-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 6px 10px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+
+/* ---------- Inputs ---------- */
+input[type="text"], input[type="number"] {
+  width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--surface); outline: none;
+}
+input:focus { border-color: var(--primary); }
+.player-row { display: flex; align-items: center; gap: 8px; }
+.player-row input { flex: 1; min-width: 0; }
+
+.stepper { display: flex; align-items: center; gap: 4px; flex: none; }
+.stepper input { width: 64px; text-align: center; padding: 8px 4px; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.step-btn { width: 40px; height: 44px; flex: none; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface-2); font-size: 20px; font-weight: 600; }
+
+.score-row { display: flex; align-items: center; gap: 8px; }
+.score-row .pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-row .score-input { width: 110px; flex: none; text-align: right; font-size: 18px; font-variant-numeric: tabular-nums; }
+.sum-line { font-size: 14px; }
+
+.cfg-form { display: flex; flex-direction: column; gap: 10px; }
+.cfg-heading { font-size: 13px; color: var(--primary); margin-top: 6px; }
+.cfg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cfg-row.stack-row { flex-direction: column; align-items: stretch; }
+.cfg-label { display: flex; flex-direction: column; min-width: 0; }
+.cfg-label small { color: var(--muted); font-size: 12px; }
+
+.switch { position: relative; width: 52px; height: 30px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: .2s; }
+.slider::before { content: ""; position: absolute; width: 24px; height: 24px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .2s; }
+.switch input:checked + .slider { background: var(--primary); }
+.switch input:checked + .slider::before { transform: translateX(22px); }
+
+/* ---------- Sheet ---------- */
+.sheet-overlay {
+  position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .45);
+  display: flex; align-items: flex-end; justify-content: center; animation: fade .15s;
+}
+.sheet-overlay.closing { opacity: 0; transition: opacity .15s; }
+.sheet {
+  width: 100%; max-width: 640px; max-height: 88vh; background: var(--bg);
+  border-radius: 18px 18px 0 0; display: flex; flex-direction: column; animation: up .2s ease-out;
+}
+.sheet.full { height: 94vh; max-height: 94vh; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.sheet-head h2 { font-size: 18px; }
+.sheet-body { flex: 1; overflow-y: auto; padding: 16px; overscroll-behavior: contain; }
+.sheet-foot { padding: 10px 16px calc(var(--sab) + 12px); border-top: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
+.preview .delta-grid { gap: 4px; }
+.error { color: var(--neg); font-size: 14px; font-weight: 600; text-align: center; padding: 6px 0; }
+.note { background: var(--warn-bg); color: var(--warn); padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+
+.menu { display: flex; flex-direction: column; gap: 8px; }
+.menu-item { display: block; width: 100%; text-align: left; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; }
+.menu-item.danger { color: var(--neg); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--sab) + 90px); transform: translate(-50%, 20px);
+  background: #1e2a24; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 14px;
+  opacity: 0; pointer-events: none; transition: .2s; z-index: 100; max-width: calc(100% - 32px); text-align: center;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@keyframes up { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+</style>
 </head>
 <body>
   <div id="app"></div>
 
   <!-- Lõi -->
-  <script src="js/core/utils.js"></script>
-  <script src="js/core/registry.js"></script>
-  <script src="js/core/store.js"></script>
-  <script src="js/core/game.js"></script>
-  <script src="js/ui/components.js"></script>
+  <script>/* js/core/utils.js */
+/* Tiện ích dùng chung: tạo DOM, id, định dạng số */
+window.App = window.App || {};
+(function (App) {
+  'use strict';
+
+  function appendChildren(el, children) {
+    for (const c of children.flat(Infinity)) {
+      if (c == null || c === false || c === true) continue;
+      el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    }
+  }
+
+  /** h('div', {class:'x', onclick: fn}, 'text', childEl, [more]) */
+  function h(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    if (attrs) {
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v == null || v === false) continue;
+        if (k === 'class') el.className = v;
+        else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+        else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+        else if (k === 'value') el.value = v;
+        else if (k === 'checked' || k === 'disabled' || k === 'selected') el[k] = true;
+        else el.setAttribute(k, v === true ? '' : v);
+      }
+    }
+    appendChildren(el, children);
+    return el;
+  }
+
+  const cx = (...a) => a.filter(Boolean).join(' ');
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const round2 = (n) => Math.round(n * 100) / 100;
+  /** +5, -3, 0 */
+  const fmt = (n) => {
+    const v = round2(n || 0);
+    return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v);
+  };
+  const fmtTime = (ts) => {
+    const d = new Date(ts);
+    const p = (x) => String(x).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const fmtDate = (ts) => {
+    const d = new Date(ts);
+    const p = (x) => String(x).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${fmtTime(ts)}`;
+  };
+
+  Object.assign(App, { h, cx, uid, clone, round2, fmt, fmtTime, fmtDate });
+})(window.App);
+
+</script>
+  <script>/* js/core/registry.js */
+/*
+ * Registry chế độ chơi.
+ *
+ * Mỗi chế độ là 1 object đăng ký qua App.registerMode({...}). Xem README.md để biết chi tiết.
+ *
+ * Bắt buộc:
+ *   id, name, minPlayers, maxPlayers
+ *   defaultConfig()                         -> object cấu hình mặc định
+ *   newRoundInput(players, config)          -> dữ liệu nhập rỗng cho 1 ván
+ *   renderRoundEditor(ctx)                  -> HTMLElement giao diện nhập 1 ván
+ *   computeRound(input, config, players)    -> { ok:true, deltas:{[playerId]:number}, details:[string] }
+ *                                              | { ok:false, error:string }
+ * Tuỳ chọn:
+ *   icon, description, seatOrdered (bool), setupHint,
+ *   configFields: [{ key, label, type:'number'|'select'|'toggle'|'heading', min, max, step, options, help }]
+ *   renderBanner(game)                      -> HTMLElement hiển thị dưới bảng tổng điểm
+ *   roundLabel(round)                       -> string nhãn riêng (mục không tính là 1 ván) | null
+ *   quickActions: [{ label, open(ctx) }]    -> nút nhanh ở màn hình trận;
+ *                                              ctx: { game, players, config, save(input, toastMsg) }
+ */
+(function (App) {
+  'use strict';
+  const REQUIRED = ['id', 'name', 'minPlayers', 'maxPlayers', 'defaultConfig', 'newRoundInput', 'renderRoundEditor', 'computeRound'];
+
+  App.modes = {};
+  App.modeOrder = [];
+
+  App.registerMode = function (mode) {
+    const missing = REQUIRED.filter((k) => mode[k] == null);
+    if (missing.length) throw new Error(`Chế độ "${mode.id || '?'}" thiếu: ${missing.join(', ')}`);
+    if (App.modes[mode.id]) throw new Error(`Trùng id chế độ: ${mode.id}`);
+    App.modes[mode.id] = Object.assign({ icon: '🃏', description: '', seatOrdered: false, configFields: [] }, mode);
+    App.modeOrder.push(mode.id);
+  };
+
+  App.getMode = (id) => App.modes[id];
+
+  /** Cấu hình đầy đủ = mặc định của chế độ + cấu hình đã lưu (để chế độ thêm trường mới vẫn chạy với trận cũ) */
+  App.resolveConfig = (mode, config) => Object.assign(mode.defaultConfig(), config || {});
+})(window.App);
+
+</script>
+  <script>/* js/core/store.js */
+/* Lưu trữ cục bộ bằng localStorage */
+(function (App) {
+  'use strict';
+  const KEY = 'soDiemBai.v1';
+
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (d && Array.isArray(d.games)) return d;
+    } catch (e) { /* bỏ qua, dùng dữ liệu rỗng */ }
+    return { version: 1, games: [] };
+  }
+
+  let data = load();
+
+  function persist() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(data));
+      return true;
+    } catch (e) {
+      if (App.ui && App.ui.toast) App.ui.toast('Không lưu được dữ liệu vào máy!');
+      return false;
+    }
+  }
+
+  App.store = {
+    list() {
+      return [...data.games].sort((a, b) => b.updatedAt - a.updatedAt);
+    },
+    get(id) {
+      return data.games.find((g) => g.id === id) || null;
+    },
+    save(game) {
+      game.updatedAt = Date.now();
+      const i = data.games.findIndex((g) => g.id === game.id);
+      if (i >= 0) data.games[i] = game;
+      else data.games.push(game);
+      return persist();
+    },
+    remove(id) {
+      data.games = data.games.filter((g) => g.id !== id);
+      return persist();
+    },
+    exportJSON() {
+      return JSON.stringify(data, null, 2);
+    },
+    /** Gộp dữ liệu sao lưu: trận trùng id sẽ bị ghi đè bằng bản sao lưu */
+    importJSON(text) {
+      const d = JSON.parse(text);
+      if (!d || !Array.isArray(d.games)) throw new Error('File không đúng định dạng');
+      const byId = new Map(data.games.map((g) => [g.id, g]));
+      d.games.forEach((g) => {
+        if (g && g.id && g.modeId && Array.isArray(g.players) && Array.isArray(g.rounds)) byId.set(g.id, g);
+      });
+      data.games = [...byId.values()];
+      persist();
+      return d.games.length;
+    },
+  };
+})(window.App);
+
+</script>
+  <script>/* js/core/game.js */
+/*
+ * Logic trận đấu, độc lập với chế độ chơi.
+ * Mỗi ván lưu: input (dữ liệu nhập), config (bản chụp cấu hình lúc ghi), deltas (điểm +/- từng người).
+ * => Đổi cấu hình giữa trận chỉ áp dụng cho ván mới; sửa ván cũ vẫn dùng cấu hình của chính ván đó.
+ */
+(function (App) {
+  'use strict';
+  const { uid, clone, round2 } = App;
+
+  function compute(game, input, config) {
+    const mode = App.getMode(game.modeId);
+    try {
+      const res = mode.computeRound(input, App.resolveConfig(mode, config), game.players);
+      if (!res || !res.ok) return { ok: false, error: (res && res.error) || 'Dữ liệu chưa hợp lệ' };
+      const deltas = {};
+      game.players.forEach((p) => { deltas[p.id] = round2(res.deltas[p.id] || 0); });
+      return { ok: true, deltas, details: res.details || [] };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  App.game = {
+    create({ modeId, name, players, config }) {
+      const now = Date.now();
+      return {
+        id: uid(),
+        modeId,
+        name,
+        players: players.map((n) => ({ id: uid(), name: n })),
+        config: clone(config),
+        rounds: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+    },
+
+    compute,
+
+    totals(game) {
+      const t = {};
+      game.players.forEach((p) => { t[p.id] = 0; });
+      game.rounds.forEach((r) => {
+        for (const [pid, v] of Object.entries(r.deltas)) if (pid in t) t[pid] += v;
+      });
+      for (const k in t) t[k] = round2(t[k]);
+      return t;
+    },
+
+    addRound(game, input) {
+      const res = compute(game, input, game.config);
+      if (!res.ok) throw new Error(res.error);
+      const round = {
+        id: uid(),
+        config: clone(App.resolveConfig(App.getMode(game.modeId), game.config)),
+        input: clone(input),
+        deltas: res.deltas,
+        details: res.details,
+        createdAt: Date.now(),
+      };
+      game.rounds.push(round);
+      return round;
+    },
+
+    updateRound(game, roundId, input) {
+      const r = game.rounds.find((x) => x.id === roundId);
+      if (!r) throw new Error('Không tìm thấy ván');
+      const res = compute(game, input, r.config);
+      if (!res.ok) throw new Error(res.error);
+      Object.assign(r, { input: clone(input), deltas: res.deltas, details: res.details, updatedAt: Date.now() });
+      return r;
+    },
+
+    deleteRound(game, roundId) {
+      game.rounds = game.rounds.filter((r) => r.id !== roundId);
+    },
+
+    updateConfig(game, config) {
+      game.config = clone(config);
+    },
+  };
+})(window.App);
+
+</script>
+  <script>/* js/ui/components.js */
+/* Thành phần giao diện dùng chung, các chế độ chơi có thể tái sử dụng qua App.ui */
+(function (App) {
+  'use strict';
+  const { h, cx, fmt } = App;
+
+  /** Nhóm nút chọn 1 giá trị. options: [{value, label, sub?}] */
+  function segmented(options, value, onChange, opts = {}) {
+    return h('div', { class: cx('seg', opts.wrap && 'seg-wrap', opts.className), role: 'radiogroup' },
+      options.map((o) => h('button', {
+        type: 'button',
+        class: cx('seg-btn', o.value === value && 'on', o.tone && `tone-${o.tone}`),
+        role: 'radio',
+        'aria-checked': String(o.value === value),
+        onclick: () => onChange(o.value),
+      }, o.label, o.sub ? h('small', null, o.sub) : null)));
+  }
+
+  /** Lưới điểm +/- từng người */
+  function deltaGrid(players, deltas, opts = {}) {
+    return h('div', { class: 'delta-grid' },
+      players.map((p, i) => {
+        const v = deltas[p.id] || 0;
+        return h('div', { class: cx('delta', v > 0 && 'pos', v < 0 && 'neg') },
+          h('span', { class: 'dname' }, opts.seat ? h('i', { class: 'seat-no' }, i + 1) : null, p.name),
+          h('b', null, fmt(v)));
+      }));
+  }
+
+  /** Bảng trượt từ dưới lên. build(api) => {title, body, footer} ; api.rerender(), api.close() */
+  function openSheet(build, opts = {}) {
+    const overlay = h('div', { class: 'sheet-overlay' });
+    const sheet = h('div', { class: cx('sheet', opts.full && 'full'), role: 'dialog', 'aria-modal': 'true' });
+    overlay.append(sheet);
+    let closed = false;
+
+    const api = {
+      close() {
+        if (closed) return;
+        closed = true;
+        overlay.classList.add('closing');
+        setTimeout(() => overlay.remove(), 160);
+        if (!document.querySelector('.sheet-overlay:not(.closing)')) document.body.classList.remove('no-scroll');
+        if (opts.onClose) opts.onClose();
+      },
+      rerender() {
+        const old = sheet.querySelector('.sheet-body');
+        const scroll = old ? old.scrollTop : 0;
+        const { title, body, footer } = build(api);
+        const bodyEl = h('div', { class: 'sheet-body' }, body);
+        sheet.replaceChildren(
+          h('div', { class: 'sheet-head' },
+            h('h2', null, title),
+            h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Đóng', onclick: api.close }, '✕')),
+          bodyEl,
+          footer ? h('div', { class: 'sheet-foot' }, footer) : null);
+        bodyEl.scrollTop = scroll;
+      },
+    };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) api.close(); });
+    api.rerender();
+    document.body.append(overlay);
+    document.body.classList.add('no-scroll');
+    return api;
+  }
+
+  /** Ô số có nút − / + */
+  function stepper(value, onChange, { min = -Infinity, max = Infinity, step = 1 } = {}) {
+    const clamp = (v) => Math.min(max, Math.max(min, v));
+    const input = h('input', {
+      type: 'number', inputmode: 'decimal', value: String(value), step: String(step),
+      onchange: () => {
+        const v = clamp(Number(input.value));
+        input.value = String(Number.isFinite(v) ? v : value);
+        onChange(Number(input.value));
+      },
+      onfocus: () => input.select(),
+    });
+    const bump = (d) => { const v = clamp(App.round2((Number(input.value) || 0) + d)); input.value = String(v); onChange(v); };
+    return h('div', { class: 'stepper' },
+      h('button', { type: 'button', class: 'step-btn', onclick: () => bump(-step), 'aria-label': 'Giảm' }, '−'),
+      input,
+      h('button', { type: 'button', class: 'step-btn', onclick: () => bump(step), 'aria-label': 'Tăng' }, '+'));
+  }
+
+  /** Form cấu hình sinh tự động từ mode.configFields. Gọi onChange(config) mỗi khi đổi. */
+  function configForm(fields, config, onChange) {
+    const cfg = config;
+    const set = (k, v) => { cfg[k] = v; onChange(cfg); };
+    return h('div', { class: 'cfg-form' }, fields.map((f) => {
+      if (f.type === 'heading') return h('h4', { class: 'cfg-heading' }, f.label);
+      let control;
+      if (f.type === 'select') {
+        const wrapper = h('div');
+        const draw = () => wrapper.replaceChildren(segmented(f.options, cfg[f.key], (v) => { set(f.key, v); draw(); }, { wrap: true, className: 'seg-col' }));
+        draw();
+        control = wrapper;
+      } else if (f.type === 'toggle') {
+        control = h('label', { class: 'switch' },
+          h('input', { type: 'checkbox', checked: !!cfg[f.key], onchange: (e) => set(f.key, e.target.checked) }),
+          h('span', { class: 'slider' }));
+      } else {
+        control = stepper(cfg[f.key], (v) => set(f.key, v), f);
+      }
+      return h('div', { class: cx('cfg-row', f.type === 'select' && 'stack-row') },
+        h('div', { class: 'cfg-label' }, h('span', null, f.label), f.help ? h('small', null, f.help) : null),
+        control);
+    }));
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    let el = document.getElementById('toast');
+    if (!el) { el = h('div', { id: 'toast', class: 'toast', role: 'status' }); document.body.append(el); }
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  /** Chuỗi thứ tự ngồi: 1 A ➜ 2 B ➜ ... ↺ */
+  function seatChain(players, opts = {}) {
+    const items = [];
+    players.forEach((p, i) => {
+      if (i) items.push(h('span', { class: 'arrow' }, '➜'));
+      items.push(h('span', { class: 'seat-chip' }, h('i', { class: 'seat-no' }, i + 1), p.name || `Người ${i + 1}`));
+    });
+    if (players.length > 1) items.push(h('span', { class: 'arrow loop', title: 'Quay lại người đầu' }, '↺'));
+    return h('div', { class: cx('seat-chain', opts.className) }, items);
+  }
+
+  App.ui = { segmented, deltaGrid, openSheet, stepper, configForm, toast, seatChain };
+})(window.App);
+
+</script>
 
   <!-- Chế độ chơi: muốn thêm chế độ mới, tạo file trong js/modes/ và thêm 1 dòng ở đây
        (nhớ thêm cả vào danh sách cache trong sw.js) -->
-  <script src="js/modes/phom.js"></script>
-  <script src="js/modes/sam.js"></script>
-  <script src="js/modes/free.js"></script>
+  <script>/* js/modes/phom.js */
+/*
+ * Chế độ PHỎM (Tá lả) — 2 đến 4 người.
+ * Thứ tự người chơi = thứ tự vòng đánh: người đứng sau ngồi sau, ăn bài của người đứng trước
+ * (người cuối ăn bài của người đầu).
+ *
+ * Luật tính điểm (đều cấu hình được trước trận và sửa được giữa trận):
+ *   - Kết thúc bình thường: Nhì / Ba / Tư / Móm trả số điểm tương ứng cho Nhất.
+ *     Móm = không có phỏm nào khi hạ bài -> trả điểm Móm thay cho điểm thứ hạng.
+ *   - Ù: mỗi người còn lại trả điểm Ù cho người Ù. Nếu có người "đền" (để người khác ăn đủ cây
+ *     dẫn tới Ù), người đền trả thay cho tất cả.
+ *   - Ăn chốt / ăn cây: chọn người BỊ ăn, người ăn tự động là người ngồi ngay sau.
+ */
+(function (App) {
+  'use strict';
+  const { h, cx, uid, ui } = App;
+
+  const RANK_LABEL = { 1: 'Nhất', 2: 'Nhì', 3: 'Ba', 4: 'Tư', mom: 'Móm' };
+  const RANK_KEY = { 2: 'nhi', 3: 'ba', 4: 'tu' };
+  const EVENT_LABEL = { chot: 'ăn chốt', cay: 'ăn cây' };
+
+  /** Người ngồi ngay sau (người sẽ ăn bài của playerId) */
+  function nextOf(players, playerId) {
+    const i = players.findIndex((p) => p.id === playerId);
+    return players[(i + 1) % players.length];
+  }
+
+  /** Người bị ăn trả điểm cho người ăn */
+  function eventMoney(ev, config) {
+    const pts = ev.type === 'chot' ? config.chot : config.anCay;
+    return { pts, payer: ev.victim, gainer: ev.eater };
+  }
+
+  App.registerMode({
+    id: 'phom',
+    name: 'Phỏm',
+    icon: '♣',
+    description: 'Tá lả, 2–4 người. Tính theo thứ hạng, móm, ù, ăn chốt.',
+    minPlayers: 2,
+    maxPlayers: 4,
+    seatOrdered: true,
+    setupHint: 'Nhập đúng thứ tự vòng đánh: người phía sau ngồi sau và ăn bài của người phía trước (người cuối ăn bài người đầu).',
+
+    defaultConfig: () => ({
+      nhi: 1, ba: 2, tu: 3, mom: 4,
+      u: 5,
+      chot: 4, anCay: 1,
+    }),
+
+    configFields: [
+      { type: 'heading', label: 'Thứ hạng — người thua trả cho Nhất' },
+      { key: 'nhi', label: 'Nhì trả', min: 0 },
+      { key: 'ba', label: 'Ba trả', min: 0 },
+      { key: 'tu', label: 'Tư trả', min: 0, help: 'Chỉ dùng khi chơi 4 người' },
+      { key: 'mom', label: 'Móm trả', min: 0, help: 'Không có phỏm nào khi hạ bài' },
+      { type: 'heading', label: 'Ù' },
+      { key: 'u', label: 'Mỗi người trả cho người Ù', min: 0, help: 'Người đền (nếu có) trả thay cả làng' },
+      { type: 'heading', label: 'Ăn bài — người bị ăn trả cho người ngồi sau' },
+      { key: 'chot', label: 'Bị ăn chốt', min: 0, help: 'Cây cuối cùng của vòng' },
+      { key: 'anCay', label: 'Bị ăn cây thường', min: 0 },
+    ],
+
+    renderBanner(game) {
+      return h('div', { class: 'banner' },
+        h('div', { class: 'banner-title' }, 'Thứ tự ngồi · người sau ăn bài người trước'),
+        ui.seatChain(game.players));
+    },
+
+    newRoundInput: () => ({ type: 'normal', ranks: {}, uPlayer: null, denPlayer: null, events: [] }),
+
+    renderRoundEditor(ctx) {
+      const { players, config } = ctx;
+      const input = ctx.input;
+      const n = players.length;
+      const name = (id) => (players.find((p) => p.id === id) || {}).name || '?';
+      const update = (patch) => ctx.setInput(Object.assign({}, ctx.input, patch));
+
+      /* ---- Kết quả ván ---- */
+      const typeSeg = ui.segmented(
+        [{ value: 'normal', label: 'Hạ bài bình thường' }, { value: 'u', label: 'Có người Ù' }],
+        input.type, (v) => update({ type: v }));
+
+      let resultSection;
+      if (input.type === 'normal') {
+        const options = [];
+        for (let r = 1; r <= n; r++) options.push({ value: r, label: RANK_LABEL[r] });
+        options.push({ value: 'mom', label: 'Móm', tone: 'warn' });
+
+        const setRank = (pid, val) => {
+          const ranks = Object.assign({}, ctx.input.ranks);
+          if (ranks[pid] === val) {
+            delete ranks[pid]; // bấm lại để bỏ chọn
+          } else {
+            if (val !== 'mom') for (const k in ranks) if (ranks[k] === val) delete ranks[k];
+            ranks[pid] = val;
+            autoFill(ranks);
+          }
+          update({ ranks });
+        };
+        // Còn đúng 1 người chưa chọn và đúng 1 hạng trống -> tự điền
+        const autoFill = (ranks) => {
+          const unset = players.filter((p) => ranks[p.id] == null);
+          if (unset.length !== 1) return;
+          const k = n - players.filter((p) => ranks[p.id] === 'mom').length;
+          const used = new Set(Object.values(ranks));
+          const missing = [];
+          for (let r = 1; r <= k; r++) if (!used.has(r)) missing.push(r);
+          if (missing.length === 1) ranks[unset[0].id] = missing[0];
+        };
+
+        resultSection = h('div', { class: 'stack-sm' },
+          players.map((p, i) => h('div', { class: 'pick-row' },
+            h('div', { class: 'pick-name' }, h('i', { class: 'seat-no' }, i + 1), p.name),
+            ui.segmented(options, input.ranks[p.id], (v) => setRank(p.id, v), { className: 'seg-fill' }))),
+          h('p', { class: 'hint' }, 'Bấm lại vào ô đã chọn để bỏ chọn. Người còn lại sẽ được tự điền.'));
+      } else {
+        const playerOpts = players.map((p) => ({ value: p.id, label: p.name }));
+        resultSection = h('div', { class: 'stack-sm' },
+          h('div', { class: 'field-label' }, 'Ai Ù?'),
+          ui.segmented(playerOpts, input.uPlayer, (v) => update({ uPlayer: v, denPlayer: ctx.input.denPlayer === v ? null : ctx.input.denPlayer }), { wrap: true }),
+          h('div', { class: 'field-label' }, 'Có người đền không?'),
+          ui.segmented(
+            [{ value: null, label: 'Không đền' }].concat(players.filter((p) => p.id !== input.uPlayer).map((p) => ({ value: p.id, label: p.name, tone: 'warn' }))),
+            input.denPlayer, (v) => update({ denPlayer: v }), { wrap: true }));
+      }
+
+      /* ---- Ăn chốt / ăn cây ---- */
+      const picking = ctx.ui.picking; // 'chot' | 'cay' | undefined
+      const addEvent = (victimId) => {
+        const ev = { id: uid(), type: picking, victim: victimId, eater: nextOf(players, victimId).id };
+        ctx.ui.picking = undefined;
+        update({ events: ctx.input.events.concat(ev) });
+      };
+      const removeEvent = (id) => update({ events: ctx.input.events.filter((e) => e.id !== id) });
+
+      const eventsSection = h('div', { class: 'stack-sm' },
+        h('div', { class: 'row gap' },
+          h('button', { type: 'button', class: cx('btn', picking === 'chot' ? 'primary' : 'outline'), onclick: () => { ctx.ui.picking = picking === 'chot' ? undefined : 'chot'; ctx.rerender(); } }, '🎯 Chốt'),
+          h('button', { type: 'button', class: cx('btn', picking === 'cay' ? 'primary' : 'outline'), onclick: () => { ctx.ui.picking = picking === 'cay' ? undefined : 'cay'; ctx.rerender(); } }, '🃏 Ăn cây')),
+        picking ? h('div', { class: 'picker' },
+          h('div', { class: 'field-label' }, `Ai bị ${EVENT_LABEL[picking]}?`),
+          h('div', { class: 'picker-grid' }, players.map((p) => {
+            const eater = nextOf(players, p.id);
+            return h('button', { type: 'button', class: 'picker-btn', onclick: () => addEvent(p.id) },
+              h('b', null, p.name),
+              h('small', null, `${eater.name} ${EVENT_LABEL[picking]} của ${p.name}`));
+          }))) : null,
+        input.events.length
+          ? h('ul', { class: 'event-list' }, input.events.map((ev) => {
+            const m = eventMoney(ev, config);
+            return h('li', null,
+              h('span', null, ev.type === 'chot' ? '🎯 ' : '🃏 ', h('b', null, name(ev.eater)), ` ${EVENT_LABEL[ev.type]} của `, h('b', null, name(ev.victim)),
+                h('small', { class: 'muted' }, ` (${name(m.payer)} −${m.pts}, ${name(m.gainer)} +${m.pts})`)),
+              h('button', { type: 'button', class: 'icon-btn sm', 'aria-label': 'Xoá', onclick: () => removeEvent(ev.id) }, '✕'));
+          }))
+          : h('p', { class: 'hint' }, 'Bấm Chốt / Ăn cây rồi chọn người bị ăn — người ngồi sau được tính tự động.'));
+
+      if (input.type === 'events') {
+        return h('div', { class: 'stack' },
+          h('section', { class: 'card-section' }, h('h3', null, 'Ăn chốt / ăn cây (ghi riêng)'), eventsSection));
+      }
+      return h('div', { class: 'stack' },
+        h('section', { class: 'card-section' }, h('h3', null, 'Kết quả ván'), typeSeg, resultSection),
+        h('section', { class: 'card-section' }, h('h3', null, 'Ăn chốt / ăn cây'), eventsSection));
+    },
+
+    /** Mục ghi riêng không tính là 1 ván (không tăng số ván) */
+    roundLabel(round) {
+      if (round.input.type !== 'events') return null;
+      const types = new Set(round.input.events.map((e) => e.type));
+      return types.size === 1 && types.has('cay') ? '🃏 Ăn cây' : '🎯 Ăn chốt';
+    },
+
+    /** Nút nhanh ở màn hình trận: ghi ăn chốt / ăn cây ngay, không cần mở form ván */
+    quickActions: [{
+      label: '🎯 Chốt',
+      open(ctx) {
+        const { players, config } = ctx;
+        let type = 'chot';
+        ui.openSheet((api) => ({
+          title: 'Ghi ăn chốt / ăn cây',
+          body: h('div', { class: 'stack' },
+            ui.segmented(
+              [{ value: 'chot', label: '🎯 Ăn chốt', sub: `${config.chot} điểm` }, { value: 'cay', label: '🃏 Ăn cây', sub: `${config.anCay} điểm` }],
+              type, (v) => { type = v; api.rerender(); }),
+            h('div', { class: 'field-label' }, `Ai bị ${EVENT_LABEL[type]}?`),
+            h('div', { class: 'picker-grid' }, players.map((p) => {
+              const eater = nextOf(players, p.id);
+              const pts = type === 'chot' ? config.chot : config.anCay;
+              return h('button', {
+                type: 'button', class: 'picker-btn',
+                onclick: () => {
+                  api.close();
+                  ctx.save({ type: 'events', events: [{ id: uid(), type, victim: p.id, eater: eater.id }] },
+                    `${eater.name} ${EVENT_LABEL[type]} của ${p.name}: ${p.name} −${pts}, ${eater.name} +${pts}`);
+                },
+              }, h('b', null, p.name), h('small', null, `${eater.name} ${EVENT_LABEL[type]} → ${p.name} −${pts}`));
+            })),
+            h('p', { class: 'hint' }, 'Ghi ngay vào bảng điểm, không tính là 1 ván. Bấm vào mục đã ghi để sửa hoặc xoá.')),
+        }));
+      },
+    }],
+
+    computeRound(input, config, players) {
+      const d = {};
+      const details = [];
+      players.forEach((p) => { d[p.id] = 0; });
+      const name = (id) => (players.find((p) => p.id === id) || {}).name || '?';
+      const has = (id) => id in d;
+
+      if (input.type === 'events') {
+        // Ghi riêng ăn chốt / ăn cây, không kèm kết quả ván
+        if (!(input.events || []).length) return { ok: false, error: 'Chưa có lượt ăn chốt / ăn cây nào' };
+      } else if (input.type === 'u') {
+        if (!input.uPlayer || !has(input.uPlayer)) return { ok: false, error: 'Chọn người Ù' };
+        const others = players.filter((p) => p.id !== input.uPlayer);
+        const total = config.u * others.length;
+        if (input.denPlayer && has(input.denPlayer) && input.denPlayer !== input.uPlayer) {
+          d[input.denPlayer] -= total;
+          d[input.uPlayer] += total;
+          details.push(`${name(input.uPlayer)} Ù +${total}`, `${name(input.denPlayer)} đền −${total}`);
+        } else {
+          others.forEach((p) => { d[p.id] -= config.u; });
+          d[input.uPlayer] += total;
+          details.push(`${name(input.uPlayer)} Ù +${total}`);
+        }
+      } else {
+        const ranks = input.ranks || {};
+        const unset = players.filter((p) => ranks[p.id] == null);
+        if (unset.length) return { ok: false, error: `Chưa chọn thứ hạng: ${unset.map((p) => p.name).join(', ')}` };
+        const moms = players.filter((p) => ranks[p.id] === 'mom');
+        const k = players.length - moms.length;
+        if (k === 0) return { ok: false, error: 'Phải có người về Nhất' };
+        const ranked = players.filter((p) => ranks[p.id] !== 'mom');
+        const seen = new Set(ranked.map((p) => ranks[p.id]));
+        for (let r = 1; r <= k; r++) {
+          if (!seen.has(r)) return { ok: false, error: `Thứ hạng phải liên tục từ Nhất đến ${RANK_LABEL[k]} (thiếu ${RANK_LABEL[r]})` };
+        }
+        const winner = ranked.find((p) => ranks[p.id] === 1);
+        let pot = 0;
+        ranked.filter((p) => p !== winner).sort((a, b) => ranks[a.id] - ranks[b.id]).forEach((p) => {
+          const pts = config[RANK_KEY[ranks[p.id]]] || 0;
+          d[p.id] -= pts; pot += pts;
+          details.push(`${p.name} ${RANK_LABEL[ranks[p.id]]} −${pts}`);
+        });
+        moms.forEach((p) => {
+          d[p.id] -= config.mom; pot += config.mom;
+          details.push(`${p.name} móm −${config.mom}`);
+        });
+        d[winner.id] += pot;
+        details.unshift(`${winner.name} Nhất +${pot}`);
+      }
+
+      (input.events || []).forEach((ev) => {
+        if (!has(ev.victim) || !has(ev.eater)) return;
+        const m = eventMoney(ev, config);
+        d[m.payer] -= m.pts;
+        d[m.gainer] += m.pts;
+        details.push(`${name(ev.eater)} ${EVENT_LABEL[ev.type]} ${name(ev.victim)} (${name(m.payer)} −${m.pts})`);
+      });
+
+      return { ok: true, deltas: d, details };
+    },
+  });
+})(window.App);
+
+</script>
+  <script>/* js/modes/sam.js */
+/*
+ * Chế độ SÂM (Sâm lốc) — 2 đến 5 người.
+ * Mỗi ván: 1 người thắng, những người còn lại thua theo số lá còn trên tay (1–9),
+ * hoặc "cháy" (chưa đánh được lá nào) = điểm cháy cấu hình được (mặc định 15).
+ * Người thắng nhận tổng điểm của những người thua.
+ */
+(function (App) {
+  'use strict';
+  const { h, ui } = App;
+
+  App.registerMode({
+    id: 'sam',
+    name: 'Sâm',
+    icon: '♠',
+    description: 'Sâm lốc, 2–5 người. Tính theo số lá thua, có bài cháy.',
+    minPlayers: 2,
+    maxPlayers: 5,
+
+    defaultConfig: () => ({ burn: 15, perCard: 1 }),
+
+    configFields: [
+      { key: 'perCard', label: 'Điểm mỗi lá thua', min: 0, help: 'Thua 5 lá = 5 × điểm này' },
+      { key: 'burn', label: 'Bài cháy (cả 10 lá)', min: 0, help: 'Chưa đánh được lá nào' },
+    ],
+
+    newRoundInput: () => ({ winner: null, cards: {} }),
+
+    renderRoundEditor(ctx) {
+      const { players, config } = ctx;
+      const input = ctx.input;
+
+      const setWinner = (pid) => {
+        const cards = Object.assign({}, ctx.input.cards);
+        delete cards[pid];
+        ctx.setInput(Object.assign({}, ctx.input, { winner: pid, cards }));
+      };
+      const setCards = (pid, v) => {
+        ctx.setInput(Object.assign({}, ctx.input, { cards: Object.assign({}, ctx.input.cards, { [pid]: v }) }));
+      };
+
+      const cardOpts = [];
+      for (let i = 1; i <= 9; i++) cardOpts.push({ value: i, label: String(i) });
+      cardOpts.push({ value: 'chay', label: 'Cháy', tone: 'warn' });
+
+      const losers = players.filter((p) => p.id !== input.winner);
+
+      return h('div', { class: 'stack' },
+        h('section', { class: 'card-section' },
+          h('h3', null, 'Người thắng'),
+          ui.segmented(players.map((p) => ({ value: p.id, label: p.name, tone: 'win' })), input.winner, setWinner, { wrap: true })),
+        input.winner
+          ? h('section', { class: 'card-section' },
+            h('h3', null, 'Số lá thua'),
+            losers.map((p) => {
+              const v = input.cards[p.id];
+              const pts = v == null ? null : v === 'chay' ? config.burn : v * config.perCard;
+              return h('div', { class: 'stack-sm loser-row' },
+                h('div', { class: 'row between' },
+                  h('b', null, p.name),
+                  h('span', { class: pts == null ? 'muted' : 'neg-text' }, pts == null ? 'chưa chọn' : `−${pts}`)),
+                ui.segmented(cardOpts, v, (val) => setCards(p.id, val), { className: 'seg-cards' }));
+            }))
+          : h('p', { class: 'hint' }, 'Chọn người thắng trước, sau đó nhập số lá của từng người thua.'));
+    },
+
+    computeRound(input, config, players) {
+      if (!input.winner || !players.some((p) => p.id === input.winner)) return { ok: false, error: 'Chọn người thắng' };
+      const d = {};
+      const details = [];
+      players.forEach((p) => { d[p.id] = 0; });
+      const losers = players.filter((p) => p.id !== input.winner);
+      const missing = losers.filter((p) => input.cards[p.id] == null);
+      if (missing.length) return { ok: false, error: `Chưa nhập số lá: ${missing.map((p) => p.name).join(', ')}` };
+      let pot = 0;
+      losers.forEach((p) => {
+        const v = input.cards[p.id];
+        const pts = v === 'chay' ? config.burn : v * config.perCard;
+        d[p.id] -= pts; pot += pts;
+        details.push(v === 'chay' ? `${p.name} cháy −${pts}` : `${p.name} thua ${v} lá −${pts}`);
+      });
+      const winner = players.find((p) => p.id === input.winner);
+      d[winner.id] += pot;
+      details.unshift(`${winner.name} thắng +${pot}`);
+      return { ok: true, deltas: d, details };
+    },
+  });
+})(window.App);
+
+</script>
+  <script>/* js/modes/free.js */
+/*
+ * CHẾ ĐỘ KHÁC — 1 đến 10 người, nhập điểm tay từng ván.
+ * Đây cũng là ví dụ đơn giản nhất để tham khảo khi viết chế độ mới.
+ */
+(function (App) {
+  'use strict';
+  const { h, cx, fmt, round2 } = App;
+
+  const parse = (s) => {
+    const v = parseFloat(String(s == null ? '' : s).replace(',', '.'));
+    return Number.isFinite(v) ? v : 0;
+  };
+
+  App.registerMode({
+    id: 'free',
+    name: 'Chế độ khác',
+    icon: '✎',
+    description: 'Tối đa 10 người, tự nhập điểm từng ván.',
+    minPlayers: 1,
+    maxPlayers: 10,
+
+    defaultConfig: () => ({ zeroSum: false }),
+
+    configFields: [
+      { key: 'zeroSum', label: 'Bắt buộc tổng mỗi ván = 0', type: 'toggle', help: 'Điểm người thắng = điểm người thua' },
+    ],
+
+    newRoundInput: () => ({ scores: {} }),
+
+    renderRoundEditor(ctx) {
+      const { players } = ctx;
+      const sumEl = h('div', { class: 'sum-line' });
+      const drawSum = () => {
+        const s = round2(players.reduce((a, p) => a + parse(ctx.input.scores[p.id]), 0));
+        sumEl.replaceChildren('Tổng ván: ', h('b', { class: cx(s !== 0 && 'warn-text') }, fmt(s)));
+      };
+      const setScore = (pid, raw, silent) => {
+        ctx.setInput(Object.assign({}, ctx.input, { scores: Object.assign({}, ctx.input.scores, { [pid]: raw }) }), { silent });
+        drawSum();
+      };
+      const balance = () => {
+        const empty = players.filter((p) => String(ctx.input.scores[p.id] == null ? '' : ctx.input.scores[p.id]).trim() === '');
+        if (empty.length !== 1) { App.ui.toast('Để trống đúng 1 người để tự cân bằng'); return; }
+        const s = players.reduce((a, p) => a + parse(ctx.input.scores[p.id]), 0);
+        setScore(empty[0].id, String(round2(-s)));
+      };
+      drawSum();
+
+      return h('div', { class: 'stack' },
+        h('section', { class: 'card-section' },
+          h('h3', null, 'Điểm ván này'),
+          players.map((p, i) => {
+            const raw = ctx.input.scores[p.id] == null ? '' : String(ctx.input.scores[p.id]);
+            const inp = h('input', {
+              type: 'text', inputmode: 'decimal', value: raw, placeholder: '0', class: 'score-input',
+              'aria-label': `Điểm của ${p.name}`,
+              oninput: (e) => setScore(p.id, e.target.value.replace(/[^\d.,\-]/g, ''), true),
+              onfocus: (e) => e.target.select(),
+              onkeydown: (e) => {
+                if (e.key === 'Enter') {
+                  const all = [...document.querySelectorAll('.score-input')];
+                  const nx = all[all.indexOf(e.target) + 1];
+                  if (nx) nx.focus(); else e.target.blur();
+                }
+              },
+            });
+            const flip = () => {
+              const cur = String(ctx.input.scores[p.id] || '').trim();
+              const next = cur.startsWith('-') ? cur.slice(1) : cur ? '-' + cur : '-';
+              inp.value = next;
+              setScore(p.id, next, true);
+              inp.focus();
+            };
+            return h('div', { class: 'score-row' },
+              h('span', { class: 'pick-name' }, h('i', { class: 'seat-no' }, i + 1), p.name),
+              h('button', { type: 'button', class: 'step-btn', onclick: flip, 'aria-label': 'Đổi dấu' }, '±'),
+              inp);
+          }),
+          h('div', { class: 'row between' }, sumEl,
+            h('button', { type: 'button', class: 'btn outline sm', onclick: balance }, '⚖ Tự cân bằng'))));
+    },
+
+    computeRound(input, config, players) {
+      const d = {};
+      let sum = 0;
+      let any = false;
+      players.forEach((p) => {
+        const v = parse(input.scores[p.id]);
+        d[p.id] = v; sum += v;
+        if (v !== 0) any = true;
+      });
+      sum = round2(sum);
+      if (!any) return { ok: false, error: 'Chưa nhập điểm' };
+      if (config.zeroSum && sum !== 0) return { ok: false, error: `Tổng ván phải bằng 0 (đang ${fmt(sum)})` };
+      return { ok: true, deltas: d, details: sum !== 0 ? [`Tổng ván ${fmt(sum)}`] : [] };
+    },
+  });
+})(window.App);
+
+</script>
 
   <!-- Giao diện chính -->
-  <script src="js/ui/app.js"></script>
+  <script>/* js/ui/app.js */
+/* Giao diện chính: danh sách trận, tạo trận, màn hình ghi điểm */
+(function (App) {
+  'use strict';
+  const { h, cx, uid, clone, fmt, fmtDate, fmtTime, ui } = App;
+  const root = document.getElementById('app');
+
+  /* ================= Router (hash) ================= */
+  function parseHash() {
+    const p = location.hash.replace(/^#\/?/, '').split('/');
+    if (p[0] === 'new') return { name: 'new', modeId: p[1] };
+    if (p[0] === 'game' && p[1]) return { name: 'game', id: p[1] };
+    return { name: 'home' };
+  }
+  const go = (path) => { location.hash = path; };
+  let route = parseHash();
+  window.addEventListener('hashchange', () => {
+    route = parseHash();
+    document.querySelectorAll('.sheet-overlay').forEach((el) => el.remove());
+    document.body.classList.remove('no-scroll');
+    render();
+    window.scrollTo(0, 0);
+  });
+
+  function render() {
+    let screen;
+    if (route.name === 'new') screen = route.modeId && App.getMode(route.modeId) ? SetupScreen(route.modeId) : ModePicker();
+    else if (route.name === 'game') screen = GameScreen(route.id);
+    else screen = HomeScreen();
+    root.replaceChildren(screen);
+  }
+
+  const topbar = (left, title, sub, right) => h('header', { class: 'topbar' },
+    left || h('span', { class: 'logo' }, '♠'),
+    h('div', { class: 'topbar-title' }, h('h1', null, title), sub ? h('p', null, sub) : null),
+    right || h('span', { style: { width: '40px' } }));
+  const backBtn = (path) => h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Quay lại', onclick: () => go(path) }, '←');
+
+  /** Nhãn từng mục: "Ván N", hoặc nhãn riêng do chế độ trả về (mục đó không tính là 1 ván) */
+  function roundLabels(game, mode) {
+    const labels = {};
+    let count = 0;
+    game.rounds.forEach((r) => {
+      const custom = mode && mode.roundLabel ? mode.roundLabel(r) : null;
+      labels[r.id] = custom || `Ván ${++count}`;
+    });
+    return { labels, count };
+  }
+
+  /* ================= Trang chủ ================= */
+  function HomeScreen() {
+    const games = App.store.list();
+    return h('div', { class: 'screen' },
+      topbar(null, 'Sổ Điểm Bài', 'Ghi điểm theo từng ván',
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Tuỳ chọn', onclick: openHomeMenu }, '⋯')),
+      h('main', { class: 'content stack' },
+        h('button', { type: 'button', class: 'btn primary block lg', onclick: () => go('/new') }, '＋ Tạo trận mới'),
+        games.length
+          ? h('section', { class: 'stack-sm' }, h('h3', { class: 'section-title' }, 'Các trận đã lưu'), games.map(GameCard))
+          : h('div', { class: 'empty' }, h('div', { class: 'empty-icon' }, '🂡'), h('p', null, 'Chưa có trận nào. Bấm “Tạo trận mới” để bắt đầu.'))));
+  }
+
+  function GameCard(game) {
+    const mode = App.getMode(game.modeId);
+    const t = App.game.totals(game);
+    return h('button', { type: 'button', class: 'game-card', onclick: () => go('/game/' + game.id) },
+      h('div', { class: 'row between' },
+        h('span', { class: 'badge' }, mode ? `${mode.icon} ${mode.name}` : game.modeId),
+        h('small', { class: 'muted' }, `${roundLabels(game, mode).count} ván · ${fmtDate(game.updatedAt)}`)),
+      h('div', { class: 'game-card-name' }, game.name),
+      h('div', { class: 'mini-totals' }, game.players.map((p) =>
+        h('span', { class: cx('mini', t[p.id] > 0 && 'pos', t[p.id] < 0 && 'neg') }, p.name, ' ', h('b', null, fmt(t[p.id]))))));
+  }
+
+  function openHomeMenu() {
+    ui.openSheet((api) => ({
+      title: 'Tuỳ chọn',
+      body: h('div', { class: 'menu' },
+        h('button', { type: 'button', class: 'menu-item', onclick: () => { exportBackup(); api.close(); } }, '⬇ Sao lưu dữ liệu (file JSON)'),
+        h('label', { class: 'menu-item' }, '⬆ Khôi phục từ file sao lưu',
+          h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: (e) => { importBackup(e.target.files[0]); api.close(); } })),
+        h('p', { class: 'hint' }, 'Dữ liệu chỉ lưu trên trình duyệt của máy này. Nên sao lưu định kỳ.')),
+    }));
+  }
+
+  function exportBackup() {
+    const blob = new Blob([App.store.exportJSON()], { type: 'application/json' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `so-diem-bai-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  function importBackup(file) {
+    if (!file) return;
+    file.text().then((txt) => {
+      try {
+        const n = App.store.importJSON(txt);
+        ui.toast(`Đã khôi phục ${n} trận`);
+        render();
+      } catch (e) { ui.toast('Lỗi: ' + e.message); }
+    });
+  }
+
+  /* ================= Chọn chế độ ================= */
+  function ModePicker() {
+    return h('div', { class: 'screen' },
+      topbar(backBtn('/'), 'Chọn chế độ chơi'),
+      h('main', { class: 'content stack-sm' }, App.modeOrder.map((id) => {
+        const m = App.modes[id];
+        return h('button', { type: 'button', class: 'mode-card', onclick: () => go('/new/' + id) },
+          h('span', { class: 'mode-icon' }, m.icon),
+          h('span', { class: 'mode-text' }, h('b', null, m.name), h('small', null, m.description)),
+          h('span', { class: 'badge' }, m.minPlayers === m.maxPlayers ? `${m.maxPlayers} người` : `${m.minPlayers}–${m.maxPlayers} người`));
+      })));
+  }
+
+  /* ================= Thiết lập trận ================= */
+  let draft = null;
+
+  function SetupScreen(modeId) {
+    const mode = App.getMode(modeId);
+    if (!draft || draft.modeId !== modeId) {
+      const count = Math.min(mode.maxPlayers, Math.max(mode.minPlayers, 4));
+      draft = {
+        modeId,
+        name: '',
+        players: Array.from({ length: count }, () => ({ key: uid(), name: '' })),
+        config: mode.defaultConfig(),
+      };
+    }
+    const container = h('div', { class: 'screen' });
+    const redraw = () => container.replaceChildren(...build());
+
+    function build() {
+      const chainHolder = h('div');
+      const drawChain = () => {
+        if (!mode.seatOrdered) return;
+        chainHolder.replaceChildren(ui.seatChain(draft.players.map((p, i) => ({ name: p.name.trim() || `Người ${i + 1}` }))));
+      };
+      drawChain();
+
+      const move = (i, d) => {
+        const j = i + d;
+        if (j < 0 || j >= draft.players.length) return;
+        const arr = draft.players;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        redraw();
+      };
+
+      const playerRows = draft.players.map((p, i) => h('div', { class: 'player-row' },
+        h('i', { class: 'seat-no lg' }, i + 1),
+        h('input', {
+          type: 'text', value: p.name, placeholder: `Người ${i + 1}`, maxlength: '16', enterkeyhint: 'next',
+          'aria-label': `Tên người chơi ${i + 1}`,
+          oninput: (e) => { p.name = e.target.value; drawChain(); },
+          onkeydown: (e) => {
+            if (e.key !== 'Enter') return;
+            const all = [...container.querySelectorAll('.player-row input')];
+            const nx = all[all.indexOf(e.target) + 1];
+            if (nx) nx.focus(); else e.target.blur();
+          },
+        }),
+        mode.seatOrdered ? h('button', { type: 'button', class: 'icon-btn sm', disabled: i === 0, 'aria-label': 'Lên', onclick: () => move(i, -1) }, '↑') : null,
+        mode.seatOrdered ? h('button', { type: 'button', class: 'icon-btn sm', disabled: i === draft.players.length - 1, 'aria-label': 'Xuống', onclick: () => move(i, 1) }, '↓') : null,
+        h('button', {
+          type: 'button', class: 'icon-btn sm', 'aria-label': 'Xoá', disabled: draft.players.length <= mode.minPlayers,
+          onclick: () => { draft.players.splice(i, 1); redraw(); },
+        }, '✕')));
+
+      return [
+        topbar(backBtn('/new'), `${mode.icon} ${mode.name}`, 'Thiết lập trận mới'),
+        h('main', { class: 'content stack' },
+          h('section', { class: 'card-section' },
+            h('h3', null, `Người chơi (${mode.minPlayers}–${mode.maxPlayers})`),
+            mode.setupHint ? h('p', { class: 'hint' }, mode.setupHint) : null,
+            h('div', { class: 'stack-sm' }, playerRows),
+            draft.players.length < mode.maxPlayers
+              ? h('button', { type: 'button', class: 'btn outline block', onclick: () => { draft.players.push({ key: uid(), name: '' }); redraw(); const ins = container.querySelectorAll('.player-row input'); ins[ins.length - 1].focus(); } }, '＋ Thêm người')
+              : null,
+            mode.seatOrdered ? chainHolder : null),
+          mode.configFields.length
+            ? h('section', { class: 'card-section' }, h('h3', null, 'Cấu hình điểm'), ui.configForm(mode.configFields, draft.config, () => {}))
+            : null,
+          h('section', { class: 'card-section' },
+            h('h3', null, 'Tên trận (tuỳ chọn)'),
+            h('input', { type: 'text', value: draft.name, placeholder: `${mode.name} · ${fmtDate(Date.now())}`, oninput: (e) => { draft.name = e.target.value; } })),
+          h('button', { type: 'button', class: 'btn primary block lg', onclick: start }, 'Bắt đầu chơi')),
+      ];
+    }
+
+    function start() {
+      const names = draft.players.map((p, i) => p.name.trim() || `Người ${i + 1}`);
+      if (names.length < mode.minPlayers) return ui.toast(`Cần ít nhất ${mode.minPlayers} người`);
+      const lower = names.map((n) => n.toLowerCase());
+      const dup = names.find((n, i) => lower.indexOf(n.toLowerCase()) !== i);
+      if (dup) return ui.toast(`Trùng tên: ${dup}`);
+      const game = App.game.create({
+        modeId: mode.id,
+        name: draft.name.trim() || `${mode.name} · ${fmtDate(Date.now())}`,
+        players: names,
+        config: draft.config,
+      });
+      App.store.save(game);
+      draft = null;
+      go('/game/' + game.id);
+    }
+
+    redraw();
+    return container;
+  }
+
+  /* ================= Màn hình trận ================= */
+  function GameScreen(id) {
+    const game = App.store.get(id);
+    if (!game) {
+      return h('div', { class: 'screen' }, topbar(backBtn('/'), 'Không tìm thấy trận'),
+        h('main', { class: 'content' }, h('p', null, 'Trận này không còn trên máy.')));
+    }
+    const mode = App.getMode(game.modeId);
+    if (!mode) {
+      return h('div', { class: 'screen' }, topbar(backBtn('/'), game.name),
+        h('main', { class: 'content' }, h('p', null, `Chế độ "${game.modeId}" chưa được cài trong phiên bản này.`)));
+    }
+    const totals = App.game.totals(game);
+    const max = Math.max(...Object.values(totals));
+    const hasLeader = game.rounds.length > 0 && Object.values(totals).filter((v) => v === max).length === 1;
+
+    const totalsBar = h('div', { class: cx('totals', game.players.length > 5 && 'many') },
+      game.players.map((p, i) => {
+        const v = totals[p.id];
+        return h('div', { class: cx('total', v > 0 && 'pos', v < 0 && 'neg', hasLeader && v === max && 'leader') },
+          h('span', { class: 'tname' }, mode.seatOrdered ? h('i', { class: 'seat-no' }, i + 1) : null, p.name),
+          h('b', { class: 'tval' }, fmt(v)));
+      }));
+
+    const { labels, count } = roundLabels(game, mode);
+    const rounds = [...game.rounds].reverse();
+    const nextLabel = `Ván ${count + 1}`;
+
+    const quickCtx = {
+      game,
+      players: game.players,
+      config: App.resolveConfig(mode, game.config),
+      save(input, message) {
+        try {
+          App.game.addRound(game, input);
+          App.store.save(game);
+          ui.toast(message || 'Đã ghi');
+          render();
+        } catch (e) { ui.toast(e.message); }
+      },
+    };
+
+    return h('div', { class: 'screen has-fab' },
+      h('div', { class: 'sticky-head' },
+        topbar(backBtn('/'), game.name, `${mode.icon} ${mode.name} · ${count} ván`,
+          h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Tuỳ chọn trận', onclick: () => openGameMenu(game) }, '⋯')),
+        totalsBar),
+      h('main', { class: 'content stack' },
+        mode.renderBanner ? mode.renderBanner(game) : null,
+        rounds.length
+          ? h('div', { class: 'stack-sm' }, rounds.map((r) => RoundCard(game, mode, r, labels[r.id])))
+          : h('div', { class: 'empty' }, h('div', { class: 'empty-icon' }, '🂠'), h('p', null, 'Chưa có ván nào. Bấm “Ghi ván” để bắt đầu.'))),
+      h('div', { class: 'fab-bar' },
+        (mode.quickActions || []).map((qa) => h('button', { type: 'button', class: 'fab secondary', onclick: () => qa.open(quickCtx) }, qa.label)),
+        h('button', { type: 'button', class: 'fab', onclick: () => openRoundEditor(game, null, nextLabel) }, '＋ Ghi ' + nextLabel.toLowerCase())));
+  }
+
+  function RoundCard(game, mode, r, label) {
+    const isRound = label.startsWith('Ván ');
+    return h('div', { class: cx('round-card', !isRound && 'side-entry'), role: 'button', tabindex: '0', onclick: () => openRoundEditor(game, r, label) },
+      h('div', { class: 'row between round-head' },
+        h('b', null, label),
+        h('span', { class: 'row gap-sm' },
+          h('small', { class: 'muted' }, fmtTime(r.createdAt) + (r.updatedAt ? ' · đã sửa' : '')),
+          h('button', {
+            type: 'button', class: 'icon-btn sm', 'aria-label': `Xoá ${label}`,
+            onclick: (e) => {
+              e.stopPropagation();
+              if (!confirm(`Xoá ${label}?`)) return;
+              App.game.deleteRound(game, r.id);
+              App.store.save(game);
+              render();
+            },
+          }, '🗑'))),
+      ui.deltaGrid(game.players, r.deltas, { seat: mode.seatOrdered }),
+      r.details && r.details.length ? h('p', { class: 'details' }, r.details.join(' · ')) : null);
+  }
+
+  function sameConfig(a, b) {
+    return JSON.stringify(Object.keys(a).sort().map((k) => [k, a[k]])) === JSON.stringify(Object.keys(b).sort().map((k) => [k, b[k]]));
+  }
+
+  /* ---- Nhập / sửa 1 ván ---- */
+  function openRoundEditor(game, round, label) {
+    const mode = App.getMode(game.modeId);
+    const config = App.resolveConfig(mode, round ? round.config : game.config);
+    const no = label || `Ván ${game.rounds.length + 1}`;
+    let input = round ? clone(round.input) : mode.newRoundInput(game.players, config);
+    const uiState = {};
+    let previewEl;
+    let saveBtn;
+
+    const updatePreview = () => {
+      const res = App.game.compute(game, input, config);
+      previewEl.replaceChildren(res.ok
+        ? ui.deltaGrid(game.players, res.deltas, { seat: mode.seatOrdered })
+        : h('div', { class: 'error' }, '⚠ ' + res.error));
+      saveBtn.disabled = !res.ok;
+    };
+
+    const save = () => {
+      try {
+        if (round) App.game.updateRound(game, round.id, input);
+        else App.game.addRound(game, input);
+        App.store.save(game);
+        sheet.close();
+        ui.toast(round ? `Đã sửa: ${no}` : `Đã ghi ${no.toLowerCase()}`);
+        render();
+      } catch (e) { ui.toast(e.message); }
+    };
+
+    const sheet = ui.openSheet((api) => {
+      const ctx = {
+        players: game.players,
+        config,
+        get input() { return input; },
+        ui: uiState,
+        setInput(next, opts) {
+          input = next;
+          if (opts && opts.silent) updatePreview(); else api.rerender();
+        },
+        rerender: () => api.rerender(),
+      };
+      const configNote = round && !sameConfig(config, App.resolveConfig(mode, game.config))
+        ? h('div', { class: 'note' }, 'Ván này tính theo cấu hình lúc ghi ván, không bị ảnh hưởng bởi cấu hình hiện tại.')
+        : null;
+      const body = h('div', { class: 'stack' }, configNote, mode.renderRoundEditor(ctx));
+      previewEl = h('div', { class: 'preview' });
+      saveBtn = h('button', { type: 'button', class: 'btn primary', onclick: save }, round ? 'Lưu thay đổi' : 'Ghi ván');
+      updatePreview();
+      return {
+        title: round ? `Sửa: ${no}` : `Ghi ${no.toLowerCase()}`,
+        body,
+        footer: [previewEl, h('div', { class: 'row gap' }, h('button', { type: 'button', class: 'btn ghost', onclick: api.close }, 'Huỷ'), saveBtn)],
+      };
+    }, { full: true });
+  }
+
+  /* ---- Menu trận ---- */
+  function openGameMenu(game) {
+    const mode = App.getMode(game.modeId);
+    ui.openSheet((api) => ({
+      title: game.name,
+      body: h('div', { class: 'menu' },
+        mode.configFields.length ? h('button', { type: 'button', class: 'menu-item', onclick: () => { api.close(); openConfigEditor(game); } }, '⚙ Sửa cấu hình điểm') : null,
+        h('button', { type: 'button', class: 'menu-item', onclick: () => { api.close(); openRename(game); } }, '✎ Đổi tên trận / người chơi'),
+        h('button', { type: 'button', class: 'menu-item', onclick: () => { api.close(); shareSummary(game); } }, '⧉ Sao chép bảng điểm'),
+        h('button', {
+          type: 'button', class: 'menu-item danger', onclick: () => {
+            if (!confirm(`Xoá trận "${game.name}"? Không thể hoàn tác.`)) return;
+            App.store.remove(game.id);
+            api.close();
+            go('/');
+          },
+        }, '🗑 Xoá trận')),
+    }));
+  }
+
+  function openConfigEditor(game) {
+    const mode = App.getMode(game.modeId);
+    const cfg = clone(App.resolveConfig(mode, game.config));
+    ui.openSheet((api) => ({
+      title: 'Cấu hình điểm',
+      body: h('div', { class: 'stack' },
+        h('div', { class: 'note' }, 'Thay đổi chỉ áp dụng cho các ván ghi sau. Các ván đã ghi giữ nguyên điểm.'),
+        ui.configForm(mode.configFields, cfg, () => {})),
+      footer: h('div', { class: 'row gap' },
+        h('button', { type: 'button', class: 'btn ghost', onclick: api.close }, 'Huỷ'),
+        h('button', {
+          type: 'button', class: 'btn primary', onclick: () => {
+            App.game.updateConfig(game, cfg);
+            App.store.save(game);
+            api.close();
+            ui.toast('Đã lưu cấu hình');
+            render();
+          },
+        }, 'Lưu')),
+    }), { full: true });
+  }
+
+  function openRename(game) {
+    const names = game.players.map((p) => p.name);
+    let gameName = game.name;
+    ui.openSheet((api) => ({
+      title: 'Đổi tên',
+      body: h('div', { class: 'stack-sm' },
+        h('div', { class: 'field-label' }, 'Tên trận'),
+        h('input', { type: 'text', value: gameName, oninput: (e) => { gameName = e.target.value; } }),
+        h('div', { class: 'field-label' }, 'Người chơi'),
+        game.players.map((p, i) => h('div', { class: 'player-row' },
+          h('i', { class: 'seat-no lg' }, i + 1),
+          h('input', { type: 'text', value: names[i], maxlength: '16', oninput: (e) => { names[i] = e.target.value; } })))),
+      footer: h('div', { class: 'row gap' },
+        h('button', { type: 'button', class: 'btn ghost', onclick: api.close }, 'Huỷ'),
+        h('button', {
+          type: 'button', class: 'btn primary', onclick: () => {
+            const clean = names.map((n, i) => n.trim() || game.players[i].name);
+            const lower = clean.map((n) => n.toLowerCase());
+            const dup = clean.find((n, i) => lower.indexOf(n.toLowerCase()) !== i);
+            if (dup) return ui.toast(`Trùng tên: ${dup}`);
+            game.players.forEach((p, i) => { p.name = clean[i]; });
+            game.name = gameName.trim() || game.name;
+            App.store.save(game);
+            api.close();
+            render();
+          },
+        }, 'Lưu')),
+    }));
+  }
+
+  function shareSummary(game) {
+    const mode = App.getMode(game.modeId);
+    const t = App.game.totals(game);
+    const lines = [`${game.name} (${mode.name}, ${game.rounds.length} ván)`];
+    [...game.players].sort((a, b) => t[b.id] - t[a.id]).forEach((p, i) => lines.push(`${i + 1}. ${p.name}: ${fmt(t[p.id])}`));
+    const text = lines.join('\n');
+    const fallback = () => {
+      const ta = h('textarea', { style: { position: 'fixed', opacity: '0' } }, text);
+      document.body.append(ta); ta.select();
+      try { document.execCommand('copy'); ui.toast('Đã sao chép'); } catch (e) { ui.toast('Không sao chép được'); }
+      ta.remove();
+    };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => ui.toast('Đã sao chép'), fallback);
+    else fallback();
+  }
+
+  /* ================= Khởi động ================= */
+  render();
+
+  const cap = window.Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+
+  // App Android: nút Back đóng bảng đang mở -> quay lại màn trước -> thoát ở trang chủ
+  if (isNative && cap.Plugins && cap.Plugins.App) {
+    cap.Plugins.App.addListener('backButton', () => {
+      const sheets = document.querySelectorAll('.sheet-overlay:not(.closing)');
+      if (sheets.length) {
+        const btn = sheets[sheets.length - 1].querySelector('.sheet-head .icon-btn');
+        if (btn) btn.click();
+      } else if (route.name !== 'home') {
+        if (route.name === 'game') go('/');
+        else history.back();
+      } else {
+        cap.Plugins.App.exitApp();
+      }
+    });
+  }
+
+  // Bản web: service worker để chạy offline (bản APK đã có sẵn file nên không cần)
+  if (!isNative && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+})(window.App);
+
+</script>
 </body>
 </html>

@@ -2,22 +2,7 @@
    Khi sửa code, tăng VERSION để điện thoại tải bản mới. */
 const VERSION = 'v2';
 const CACHE = 'so-diem-bai-' + VERSION;
-const FILES = [
-  './',
-  'index.html',
-  'manifest.webmanifest',
-  'icons/icon.svg',
-  'css/app.css',
-  'js/core/utils.js',
-  'js/core/registry.js',
-  'js/core/store.js',
-  'js/core/game.js',
-  'js/ui/components.js',
-  'js/modes/phom.js',
-  'js/modes/sam.js',
-  'js/modes/free.js',
-  'js/ui/app.js',
-];
+const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
