@@ -1,0 +1,16 @@
+{
+  "name": "Sổ Điểm Bài",
+  "short_name": "Sổ Điểm",
+  "description": "Ghi điểm Phỏm, Sâm và các trò chơi bài khác theo từng ván",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b5d45",
+  "theme_color": "#0b5d45",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
