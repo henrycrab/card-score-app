@@ -307,6 +307,20 @@ input:focus { border-color: var(--primary); }
 @keyframes up { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* Ô số giữ để tăng giảm liên tục */
+.step-btn { user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-touch-callout: none; }
+.step-btn:active { background: var(--line); }
+
+/* Sâm: ô số lá + nút cháy */
+.loser-controls { display: flex; align-items: center; gap: 8px; }
+.loser-controls .stepper input { width: 76px; font-size: 18px; }
+.stepper-wrap.is-disabled { opacity: .35; pointer-events: none; }
+.burn-btn {
+  flex: 1; min-height: 44px; border-radius: 10px; border: 1.5px solid var(--line);
+  background: var(--surface); font-weight: 600; white-space: nowrap;
+}
+.burn-btn.on { background: var(--warn); border-color: var(--warn); color: #fff; }
+
 </style>
 </head>
 <body>
@@ -625,23 +639,87 @@ window.App = window.App || {};
     return api;
   }
 
-  /** Ô số có nút − / + */
-  function stepper(value, onChange, { min = -Infinity, max = Infinity, step = 1 } = {}) {
+  /**
+   * Ô số: gõ trực tiếp, hoặc bấm − / +. Giữ nút để tăng giảm liên tục.
+   * allowEmpty: cho phép ô trống (onChange(null)); bấm − / + từ ô trống sẽ bắt đầu từ min.
+   */
+  function stepper(value, onChange, { min = -Infinity, max = Infinity, step = 1, allowEmpty = false, placeholder = '' } = {}) {
     const clamp = (v) => Math.min(max, Math.max(min, v));
+    let current = value == null ? null : value;
     const input = h('input', {
-      type: 'number', inputmode: 'decimal', value: String(value), step: String(step),
+      type: 'number', inputmode: 'decimal', value: current == null ? '' : String(current), step: String(step), placeholder,
       onchange: () => {
-        const v = clamp(Number(input.value));
-        input.value = String(Number.isFinite(v) ? v : value);
-        onChange(Number(input.value));
+        const raw = input.value.trim();
+        if (raw === '' && allowEmpty) { current = null; onChange(null); return; }
+        const v = clamp(Number(raw));
+        if (raw === '' || !Number.isFinite(v)) { input.value = current == null ? '' : String(current); return; }
+        current = v; input.value = String(v); onChange(v);
       },
       onfocus: () => input.select(),
     });
-    const bump = (d) => { const v = clamp(App.round2((Number(input.value) || 0) + d)); input.value = String(v); onChange(v); };
-    return h('div', { class: 'stepper' },
-      h('button', { type: 'button', class: 'step-btn', onclick: () => bump(-step), 'aria-label': 'Giảm' }, '−'),
-      input,
-      h('button', { type: 'button', class: 'step-btn', onclick: () => bump(step), 'aria-label': 'Tăng' }, '+'));
+    const bump = (d) => {
+      const v = current == null
+        ? (Number.isFinite(min) ? min : 0)
+        : clamp(App.round2(current + d));
+      if (v === current) return;
+      current = v; input.value = String(v); onChange(v);
+    };
+    const holdButton = (label, d, aria) => {
+      let delay, repeat;
+      const stop = () => { clearTimeout(delay); clearInterval(repeat); };
+      return h('button', {
+        type: 'button', class: 'step-btn', 'aria-label': aria,
+        onpointerdown: (e) => {
+          if (e.button) return;
+          e.preventDefault();
+          stop();
+          bump(d);
+          delay = setTimeout(() => { repeat = setInterval(() => bump(d), 70); }, 400);
+        },
+        onpointerup: stop, onpointerleave: stop, onpointercancel: stop,
+        onclick: (e) => { if (e.detail === 0) bump(d); }, // bấm bằng bàn phím
+        oncontextmenu: (e) => e.preventDefault(),
+      }, label);
+    };
+    return h('div', { class: 'stepper' }, holdButton('−', -step, 'Giảm'), input, holdButton('+', step, 'Tăng'));
+  }
+
+  /**
+   * Dòng nhập điểm của 1 người thua: ô số (giữ − / +) + nút điểm cố định (vd "Cháy").
+   * o: { name, value, token, tokenLabel, min, max, placeholder, pointsOf(value), onChange(value), onToggle() }
+   * value là số, null (chưa nhập) hoặc token (đang bật nút cố định).
+   * onChange được gọi khi gõ / bấm − + (nên cập nhật "silent" để không vẽ lại form).
+   */
+  function lossRow(o) {
+    const fixedOn = o.value === o.token;
+    const ptsEl = h('span');
+    const drawPts = (val) => {
+      const pts = o.pointsOf(val);
+      ptsEl.className = pts == null ? 'muted' : 'neg-text';
+      ptsEl.textContent = pts == null ? 'chưa nhập' : fmt(-pts);
+    };
+    drawPts(o.value);
+    const counter = stepper(fixedOn ? null : o.value, (val) => { o.onChange(val); drawPts(val); },
+      { min: o.min, max: o.max, allowEmpty: true, placeholder: o.placeholder || '' });
+    return h('div', { class: 'stack-sm loser-row' },
+      h('div', { class: 'row between' }, h('b', null, o.name), ptsEl),
+      h('div', { class: 'loser-controls' },
+        h('div', { class: cx('stepper-wrap', fixedOn && 'is-disabled') }, counter),
+        h('button', { type: 'button', class: cx('burn-btn', fixedOn && 'on'), 'aria-pressed': String(fixedOn), onclick: o.onToggle }, o.tokenLabel)));
+  }
+
+  /** Bật/tắt nút cố định cho 1 người trong ctx.input[field]; tắt thì trả lại số đã nhập trước đó. Trả về map mới. */
+  function toggleToken(ctx, field, pid, token) {
+    const map = Object.assign({}, ctx.input[field]);
+    const key = 'last_' + field;
+    const last = ctx.ui[key] || (ctx.ui[key] = {});
+    if (map[pid] === token) {
+      map[pid] = last[pid] == null ? null : last[pid];
+    } else {
+      last[pid] = map[pid] == null ? null : map[pid];
+      map[pid] = token;
+    }
+    return map;
   }
 
   /** Form cấu hình sinh tự động từ mode.configFields. Gọi onChange(config) mỗi khi đổi. */
@@ -690,7 +768,7 @@ window.App = window.App || {};
     return h('div', { class: cx('seat-chain', opts.className) }, items);
   }
 
-  App.ui = { segmented, deltaGrid, openSheet, stepper, configForm, toast, seatChain };
+  App.ui = { segmented, deltaGrid, openSheet, stepper, lossRow, toggleToken, configForm, toast, seatChain };
 })(window.App);
 
 </script>
@@ -967,9 +1045,12 @@ window.App = window.App || {};
   <script>/* js/modes/sam.js */
 /*
  * Chế độ SÂM (Sâm lốc) — 2 đến 5 người.
- * Mỗi ván: 1 người thắng, những người còn lại thua theo số lá còn trên tay (1–9),
- * hoặc "cháy" (chưa đánh được lá nào) = điểm cháy cấu hình được (mặc định 15).
- * Người thắng nhận tổng điểm của những người thua.
+ * Kết quả 1 ván là một trong hai kiểu:
+ *   - Thắng thường: 1 người thắng, mỗi người thua trả theo số lá còn trên tay (1–9) × điểm/lá,
+ *     hoặc "cháy" (chưa đánh được lá nào) = điểm cháy.
+ *   - Báo sâm: thành công -> mỗi người còn lại trả điểm báo sâm cho người báo;
+ *              bị chặn    -> người báo đền cho người chặn: điểm báo sâm × số người chơi.
+ * Tất cả số điểm đều cấu hình được.
  */
 (function (App) {
   'use strict';
@@ -979,63 +1060,117 @@ window.App = window.App || {};
     id: 'sam',
     name: 'Sâm',
     icon: '♠',
-    description: 'Sâm lốc, 2–5 người. Tính theo số lá thua, có bài cháy.',
+    description: 'Sâm lốc, 2–5 người. Tính theo số lá thua, cháy bài, báo sâm.',
     minPlayers: 2,
     maxPlayers: 5,
 
-    defaultConfig: () => ({ burn: 15, perCard: 1 }),
+    defaultConfig: () => ({ perCard: 1, burn: 15, sam: 20 }),
 
     configFields: [
+      { type: 'heading', label: 'Thắng thường — người thua trả cho người thắng' },
       { key: 'perCard', label: 'Điểm mỗi lá thua', min: 0, help: 'Thua 5 lá = 5 × điểm này' },
-      { key: 'burn', label: 'Bài cháy (cả 10 lá)', min: 0, help: 'Chưa đánh được lá nào' },
+      { key: 'burn', label: 'Cháy bài (cả 10 lá)', min: 0, help: 'Chưa đánh được lá nào' },
+      { type: 'heading', label: 'Báo sâm' },
+      { key: 'sam', label: 'Điểm báo sâm', min: 0, help: 'Thành công: mỗi người trả điểm này. Bị chặn: người báo đền người chặn điểm này × số người chơi' },
     ],
 
-    newRoundInput: () => ({ winner: null, cards: {} }),
+    newRoundInput: () => ({ type: 'normal', winner: null, cards: {}, samPlayer: null, samResult: 'ok', blocker: null }),
 
     renderRoundEditor(ctx) {
       const { players, config } = ctx;
       const input = ctx.input;
+      const type = input.type || 'normal';
+      const update = (patch) => ctx.setInput(Object.assign({}, ctx.input, patch));
+      const others = players.length - 1;
+
+      const typeSeg = ui.segmented(
+        [{ value: 'normal', label: 'Thắng thường' }, { value: 'sam', label: '📣 Báo sâm' }],
+        type, (v) => update({ type: v }));
+
+      if (type === 'sam') {
+        const result = input.samResult || 'ok';
+        const playerOpts = players.map((p) => ({ value: p.id, label: p.name }));
+        return h('div', { class: 'stack' },
+          h('section', { class: 'card-section' },
+            h('h3', null, 'Kết quả ván'), typeSeg,
+            h('div', { class: 'field-label' }, 'Ai báo sâm?'),
+            ui.segmented(playerOpts, input.samPlayer,
+              (v) => update({ samPlayer: v, blocker: ctx.input.blocker === v ? null : ctx.input.blocker }), { wrap: true }),
+            h('div', { class: 'field-label' }, 'Kết quả báo sâm'),
+            ui.segmented([
+              { value: 'ok', label: 'Thành công', sub: `+${config.sam} × ${others}`, tone: 'win' },
+              { value: 'fail', label: 'Bị chặn', sub: `đền ${config.sam} × ${players.length}`, tone: 'warn' },
+            ], result, (v) => update({ samResult: v })),
+            result === 'fail'
+              ? [h('div', { class: 'field-label' }, 'Ai chặn?'),
+                ui.segmented(players.filter((p) => p.id !== input.samPlayer).map((p) => ({ value: p.id, label: p.name, tone: 'win' })),
+                  input.blocker, (v) => update({ blocker: v }), { wrap: true })]
+              : null));
+      }
 
       const setWinner = (pid) => {
         const cards = Object.assign({}, ctx.input.cards);
         delete cards[pid];
-        ctx.setInput(Object.assign({}, ctx.input, { winner: pid, cards }));
+        update({ winner: pid, cards });
       };
-      const setCards = (pid, v) => {
-        ctx.setInput(Object.assign({}, ctx.input, { cards: Object.assign({}, ctx.input.cards, { [pid]: v }) }));
-      };
-
-      const cardOpts = [];
-      for (let i = 1; i <= 9; i++) cardOpts.push({ value: i, label: String(i) });
-      cardOpts.push({ value: 'chay', label: 'Cháy', tone: 'warn' });
+      // Đổi số lá không vẽ lại cả form (để giữ nút − / + chạy liên tục được)
+      const setCardsSilent = (pid, v) =>
+        ctx.setInput(Object.assign({}, ctx.input, { cards: Object.assign({}, ctx.input.cards, { [pid]: v }) }), { silent: true });
+      const pointsOf = (v) => (v == null ? null : v === 'chay' ? config.burn : v * config.perCard);
 
       const losers = players.filter((p) => p.id !== input.winner);
 
       return h('div', { class: 'stack' },
         h('section', { class: 'card-section' },
-          h('h3', null, 'Người thắng'),
+          h('h3', null, 'Kết quả ván'), typeSeg,
+          h('div', { class: 'field-label' }, 'Người thắng'),
           ui.segmented(players.map((p) => ({ value: p.id, label: p.name, tone: 'win' })), input.winner, setWinner, { wrap: true })),
         input.winner
           ? h('section', { class: 'card-section' },
             h('h3', null, 'Số lá thua'),
-            losers.map((p) => {
-              const v = input.cards[p.id];
-              const pts = v == null ? null : v === 'chay' ? config.burn : v * config.perCard;
-              return h('div', { class: 'stack-sm loser-row' },
-                h('div', { class: 'row between' },
-                  h('b', null, p.name),
-                  h('span', { class: pts == null ? 'muted' : 'neg-text' }, pts == null ? 'chưa chọn' : `−${pts}`)),
-                ui.segmented(cardOpts, v, (val) => setCards(p.id, val), { className: 'seg-cards' }));
-            }))
+            h('p', { class: 'hint' }, `Mỗi lá ${config.perCard} điểm · Cháy ${config.burn} điểm. Gõ số lá (1–9) hoặc giữ − / + để tăng giảm nhanh.`),
+            losers.map((p) => ui.lossRow({
+              name: p.name,
+              value: input.cards[p.id],
+              token: 'chay',
+              tokenLabel: '🔥 Cháy',
+              min: 1, max: 9, placeholder: 'số lá',
+              pointsOf,
+              onChange: (val) => setCardsSilent(p.id, val),
+              onToggle: () => update({ cards: ui.toggleToken(ctx, 'cards', p.id, 'chay') }),
+            })))
           : h('p', { class: 'hint' }, 'Chọn người thắng trước, sau đó nhập số lá của từng người thua.'));
     },
 
     computeRound(input, config, players) {
-      if (!input.winner || !players.some((p) => p.id === input.winner)) return { ok: false, error: 'Chọn người thắng' };
       const d = {};
       const details = [];
       players.forEach((p) => { d[p.id] = 0; });
-      const losers = players.filter((p) => p.id !== input.winner);
+      const byId = (id) => players.find((p) => p.id === id);
+
+      if (input.type === 'sam') {
+        const caller = byId(input.samPlayer);
+        if (!caller) return { ok: false, error: 'Chọn người báo sâm' };
+        const others = players.filter((p) => p !== caller);
+        if (input.samResult === 'fail') {
+          const blocker = byId(input.blocker);
+          if (!blocker || blocker === caller) return { ok: false, error: 'Chọn người chặn' };
+          const total = config.sam * players.length;
+          d[caller.id] -= total;
+          d[blocker.id] += total;
+          details.push(`${caller.name} báo sâm bị chặn −${total}`, `${blocker.name} chặn +${total}`);
+        } else {
+          others.forEach((p) => { d[p.id] -= config.sam; });
+          d[caller.id] += config.sam * others.length;
+          details.push(`${caller.name} báo sâm thành công +${config.sam * others.length}`);
+        }
+        return { ok: true, deltas: d, details };
+      }
+
+      // Thắng thường (ván cũ không có `type` cũng tính ở đây)
+      const winner = byId(input.winner);
+      if (!winner) return { ok: false, error: 'Chọn người thắng' };
+      const losers = players.filter((p) => p !== winner);
       const missing = losers.filter((p) => input.cards[p.id] == null);
       if (missing.length) return { ok: false, error: `Chưa nhập số lá: ${missing.map((p) => p.name).join(', ')}` };
       let pot = 0;
@@ -1045,7 +1180,6 @@ window.App = window.App || {};
         d[p.id] -= pts; pot += pts;
         details.push(v === 'chay' ? `${p.name} cháy −${pts}` : `${p.name} thua ${v} lá −${pts}`);
       });
-      const winner = players.find((p) => p.id === input.winner);
       d[winner.id] += pot;
       details.unshift(`${winner.name} thắng +${pot}`);
       return { ok: true, deltas: d, details };
@@ -1056,93 +1190,95 @@ window.App = window.App || {};
 </script>
   <script>/* js/modes/free.js */
 /*
- * CHẾ ĐỘ KHÁC — 1 đến 10 người, nhập điểm tay từng ván.
- * Đây cũng là ví dụ đơn giản nhất để tham khảo khi viết chế độ mới.
+ * CHẾ ĐỘ KHÁC — 1 đến 10 người. Mỗi ván chọn 1 trong 2 kiểu ghi:
+ *   - Nhập tay: tự gõ điểm +/− cho từng người.
+ *   - Thắng – thua (giống Sâm): chọn người thắng; mỗi người thua nhập số điểm (giữ − / + để tăng giảm nhanh)
+ *     hoặc bấm nút "phạt cố định" để trả đúng số điểm cấu hình sẵn. Người thắng nhận tổng.
  */
 (function (App) {
   'use strict';
-  const { h, cx, fmt, round2 } = App;
+  const { h, cx, fmt, round2, ui } = App;
 
   const parse = (s) => {
     const v = parseFloat(String(s == null ? '' : s).replace(',', '.'));
     return Number.isFinite(v) ? v : 0;
   };
+  const FIXED = 'fixed';
 
   App.registerMode({
     id: 'free',
     name: 'Chế độ khác',
     icon: '✎',
-    description: 'Tối đa 10 người, tự nhập điểm từng ván.',
+    description: 'Tối đa 10 người. Nhập tay hoặc thắng – thua có điểm phạt cố định.',
     minPlayers: 1,
     maxPlayers: 10,
 
-    defaultConfig: () => ({ zeroSum: false }),
+    defaultConfig: () => ({ defaultType: 'manual', zeroSum: false, fixed: 10 }),
 
     configFields: [
+      {
+        key: 'defaultType', label: 'Kiểu ghi mặc định khi mở form ván', type: 'select',
+        options: [
+          { value: 'manual', label: 'Nhập tay', sub: 'Tự gõ điểm từng người' },
+          { value: 'winlose', label: 'Thắng – thua', sub: 'Như Sâm, có nút phạt cố định' },
+        ],
+      },
+      { type: 'heading', label: 'Thắng – thua' },
+      { key: 'fixed', label: 'Điểm phạt cố định', min: 0, help: 'Bấm nút ⚡ ở người thua để trừ đúng số điểm này' },
+      { type: 'heading', label: 'Nhập tay' },
       { key: 'zeroSum', label: 'Bắt buộc tổng mỗi ván = 0', type: 'toggle', help: 'Điểm người thắng = điểm người thua' },
     ],
 
-    newRoundInput: () => ({ scores: {} }),
+    newRoundInput: (players, config) => ({
+      type: config.defaultType === 'winlose' ? 'winlose' : 'manual',
+      scores: {},
+      winner: null,
+      losses: {},
+    }),
 
     renderRoundEditor(ctx) {
-      const { players } = ctx;
-      const sumEl = h('div', { class: 'sum-line' });
-      const drawSum = () => {
-        const s = round2(players.reduce((a, p) => a + parse(ctx.input.scores[p.id]), 0));
-        sumEl.replaceChildren('Tổng ván: ', h('b', { class: cx(s !== 0 && 'warn-text') }, fmt(s)));
-      };
-      const setScore = (pid, raw, silent) => {
-        ctx.setInput(Object.assign({}, ctx.input, { scores: Object.assign({}, ctx.input.scores, { [pid]: raw }) }), { silent });
-        drawSum();
-      };
-      const balance = () => {
-        const empty = players.filter((p) => String(ctx.input.scores[p.id] == null ? '' : ctx.input.scores[p.id]).trim() === '');
-        if (empty.length !== 1) { App.ui.toast('Để trống đúng 1 người để tự cân bằng'); return; }
-        const s = players.reduce((a, p) => a + parse(ctx.input.scores[p.id]), 0);
-        setScore(empty[0].id, String(round2(-s)));
-      };
-      drawSum();
+      const { players, config } = ctx;
+      const type = ctx.input.type === 'winlose' ? 'winlose' : 'manual';
+      const update = (patch) => ctx.setInput(Object.assign({}, ctx.input, patch));
+
+      const typeSeg = ui.segmented(
+        [{ value: 'manual', label: '✎ Nhập tay' }, { value: 'winlose', label: '🏆 Thắng – thua' }],
+        type, (v) => update({ type: v }));
 
       return h('div', { class: 'stack' },
-        h('section', { class: 'card-section' },
-          h('h3', null, 'Điểm ván này'),
-          players.map((p, i) => {
-            const raw = ctx.input.scores[p.id] == null ? '' : String(ctx.input.scores[p.id]);
-            const inp = h('input', {
-              type: 'text', inputmode: 'decimal', value: raw, placeholder: '0', class: 'score-input',
-              'aria-label': `Điểm của ${p.name}`,
-              oninput: (e) => setScore(p.id, e.target.value.replace(/[^\d.,\-]/g, ''), true),
-              onfocus: (e) => e.target.select(),
-              onkeydown: (e) => {
-                if (e.key === 'Enter') {
-                  const all = [...document.querySelectorAll('.score-input')];
-                  const nx = all[all.indexOf(e.target) + 1];
-                  if (nx) nx.focus(); else e.target.blur();
-                }
-              },
-            });
-            const flip = () => {
-              const cur = String(ctx.input.scores[p.id] || '').trim();
-              const next = cur.startsWith('-') ? cur.slice(1) : cur ? '-' + cur : '-';
-              inp.value = next;
-              setScore(p.id, next, true);
-              inp.focus();
-            };
-            return h('div', { class: 'score-row' },
-              h('span', { class: 'pick-name' }, h('i', { class: 'seat-no' }, i + 1), p.name),
-              h('button', { type: 'button', class: 'step-btn', onclick: flip, 'aria-label': 'Đổi dấu' }, '±'),
-              inp);
-          }),
-          h('div', { class: 'row between' }, sumEl,
-            h('button', { type: 'button', class: 'btn outline sm', onclick: balance }, '⚖ Tự cân bằng'))));
+        h('section', { class: 'card-section' }, h('h3', null, 'Kiểu ghi điểm'), typeSeg),
+        type === 'winlose' ? winLoseEditor(ctx, players, config, update) : manualEditor(ctx, players));
     },
 
     computeRound(input, config, players) {
       const d = {};
+      players.forEach((p) => { d[p.id] = 0; });
+
+      if (input.type === 'winlose') {
+        const winner = players.find((p) => p.id === input.winner);
+        if (!winner) return { ok: false, error: 'Chọn người thắng' };
+        const losers = players.filter((p) => p !== winner);
+        const losses = input.losses || {};
+        const missing = losers.filter((p) => losses[p.id] == null);
+        if (missing.length) return { ok: false, error: `Chưa nhập điểm: ${missing.map((p) => p.name).join(', ')}` };
+        const details = [];
+        let pot = 0;
+        losers.forEach((p) => {
+          const v = losses[p.id];
+          const pts = v === FIXED ? config.fixed : Number(v);
+          d[p.id] -= pts; pot += pts;
+          details.push(v === FIXED ? `${p.name} phạt cố định ${fmt(-pts)}` : `${p.name} ${fmt(-pts)}`);
+        });
+        d[winner.id] += pot;
+        details.unshift(`${winner.name} thắng ${fmt(pot)}`);
+        return { ok: true, deltas: d, details };
+      }
+
+      // Nhập tay (ván cũ không có `type` cũng tính ở đây)
       let sum = 0;
       let any = false;
       players.forEach((p) => {
-        const v = parse(input.scores[p.id]);
+        const v = parse((input.scores || {})[p.id]);
         d[p.id] = v; sum += v;
         if (v !== 0) any = true;
       });
@@ -1152,6 +1288,95 @@ window.App = window.App || {};
       return { ok: true, deltas: d, details: sum !== 0 ? [`Tổng ván ${fmt(sum)}`] : [] };
     },
   });
+
+  /* ---------- Thắng – thua ---------- */
+  function winLoseEditor(ctx, players, config, update) {
+    const input = ctx.input;
+    const losses = input.losses || {};
+    const setWinner = (pid) => {
+      const next = Object.assign({}, losses);
+      delete next[pid];
+      update({ winner: pid, losses: next });
+    };
+    const setLossSilent = (pid, v) =>
+      ctx.setInput(Object.assign({}, ctx.input, { losses: Object.assign({}, ctx.input.losses, { [pid]: v }) }), { silent: true });
+    const pointsOf = (v) => (v == null ? null : v === FIXED ? config.fixed : Number(v));
+    const losers = players.filter((p) => p.id !== input.winner);
+
+    return [
+      h('section', { class: 'card-section' },
+        h('h3', null, 'Người thắng'),
+        ui.segmented(players.map((p) => ({ value: p.id, label: p.name, tone: 'win' })), input.winner, setWinner, { wrap: true })),
+      input.winner
+        ? h('section', { class: 'card-section' },
+          h('h3', null, 'Điểm thua'),
+          h('p', { class: 'hint' }, `Gõ điểm hoặc giữ − / + để tăng giảm nhanh. Nút ⚡ = phạt cố định ${config.fixed} điểm.`),
+          losers.map((p) => ui.lossRow({
+            name: p.name,
+            value: losses[p.id],
+            token: FIXED,
+            tokenLabel: `⚡ ${config.fixed}`,
+            min: 0, max: 9999, placeholder: 'điểm',
+            pointsOf,
+            onChange: (val) => setLossSilent(p.id, val),
+            onToggle: () => update({ losses: ui.toggleToken(ctx, 'losses', p.id, FIXED) }),
+          })))
+        : h('p', { class: 'hint' }, 'Chọn người thắng trước, sau đó nhập điểm của từng người thua.'),
+    ];
+  }
+
+  /* ---------- Nhập tay ---------- */
+  function manualEditor(ctx, players) {
+    const sumEl = h('div', { class: 'sum-line' });
+    const scores = () => ctx.input.scores || {};
+    const drawSum = () => {
+      const s = round2(players.reduce((a, p) => a + parse(scores()[p.id]), 0));
+      sumEl.replaceChildren('Tổng ván: ', h('b', { class: cx(s !== 0 && 'warn-text') }, fmt(s)));
+    };
+    const setScore = (pid, raw, silent) => {
+      ctx.setInput(Object.assign({}, ctx.input, { scores: Object.assign({}, scores(), { [pid]: raw }) }), { silent });
+      drawSum();
+    };
+    const balance = () => {
+      const empty = players.filter((p) => String(scores()[p.id] == null ? '' : scores()[p.id]).trim() === '');
+      if (empty.length !== 1) { ui.toast('Để trống đúng 1 người để tự cân bằng'); return; }
+      const s = players.reduce((a, p) => a + parse(scores()[p.id]), 0);
+      setScore(empty[0].id, String(round2(-s)));
+    };
+    drawSum();
+
+    return h('section', { class: 'card-section' },
+      h('h3', null, 'Điểm ván này'),
+      players.map((p, i) => {
+        const raw = scores()[p.id] == null ? '' : String(scores()[p.id]);
+        const inp = h('input', {
+          type: 'text', inputmode: 'decimal', value: raw, placeholder: '0', class: 'score-input',
+          'aria-label': `Điểm của ${p.name}`,
+          oninput: (e) => setScore(p.id, e.target.value.replace(/[^\d.,\-]/g, ''), true),
+          onfocus: (e) => e.target.select(),
+          onkeydown: (e) => {
+            if (e.key === 'Enter') {
+              const all = [...document.querySelectorAll('.score-input')];
+              const nx = all[all.indexOf(e.target) + 1];
+              if (nx) nx.focus(); else e.target.blur();
+            }
+          },
+        });
+        const flip = () => {
+          const cur = String(scores()[p.id] || '').trim();
+          const next = cur.startsWith('-') ? cur.slice(1) : cur ? '-' + cur : '-';
+          inp.value = next;
+          setScore(p.id, next, true);
+          inp.focus();
+        };
+        return h('div', { class: 'score-row' },
+          h('span', { class: 'pick-name' }, h('i', { class: 'seat-no' }, i + 1), p.name),
+          h('button', { type: 'button', class: 'step-btn', onclick: flip, 'aria-label': 'Đổi dấu' }, '±'),
+          inp);
+      }),
+      h('div', { class: 'row between' }, sumEl,
+        h('button', { type: 'button', class: 'btn outline sm', onclick: balance }, '⚖ Tự cân bằng')));
+  }
 })(window.App);
 
 </script>
@@ -1238,8 +1463,25 @@ window.App = window.App || {};
         h('button', { type: 'button', class: 'menu-item', onclick: () => { exportBackup(); api.close(); } }, '⬇ Sao lưu dữ liệu (file JSON)'),
         h('label', { class: 'menu-item' }, '⬆ Khôi phục từ file sao lưu',
           h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: (e) => { importBackup(e.target.files[0]); api.close(); } })),
-        h('p', { class: 'hint' }, 'Dữ liệu chỉ lưu trên trình duyệt của máy này. Nên sao lưu định kỳ.')),
+        h('p', { class: 'hint' }, 'Dữ liệu chỉ lưu trên trình duyệt của máy này. Nên sao lưu định kỳ.'),
+        versionLine()),
     }));
+  }
+
+  /** Dòng "Phiên bản vN" lấy từ tên cache của service worker */
+  function versionLine() {
+    const el = h('p', { class: 'hint' }, 'Phiên bản: …');
+    if (window.caches) {
+      caches.keys()
+        .then((keys) => {
+          const v = keys.filter((k) => k.startsWith('so-diem-bai-')).map((k) => k.slice(12)).sort().pop();
+          el.textContent = `Phiên bản: ${v || 'chưa cài offline'}`;
+        })
+        .catch(() => { el.textContent = 'Phiên bản: không rõ'; });
+    } else {
+      el.textContent = 'Phiên bản: chưa cài offline';
+    }
+    return el;
   }
 
   function exportBackup() {
@@ -1413,7 +1655,11 @@ window.App = window.App || {};
     return h('div', { class: 'screen has-fab' },
       h('div', { class: 'sticky-head' },
         topbar(backBtn('/'), game.name, `${mode.icon} ${mode.name} · ${count} ván`,
-          h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Tuỳ chọn trận', onclick: () => openGameMenu(game) }, '⋯')),
+          h('div', { class: 'row gap-sm' },
+            mode.configFields.length
+              ? h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Sửa cấu hình điểm', title: 'Sửa cấu hình điểm', onclick: () => openConfigEditor(game) }, '⚙')
+              : null,
+            h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Tuỳ chọn trận', onclick: () => openGameMenu(game) }, '⋯'))),
         totalsBar),
       h('main', { class: 'content stack' },
         mode.renderBanner ? mode.renderBanner(game) : null,
@@ -1618,7 +1864,21 @@ window.App = window.App || {};
 
   // Bản web: service worker để chạy offline (bản APK đã có sẵn file nên không cần)
   if (!isNative && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    // Có bản mới -> service worker mới kích hoạt -> tự tải lại trang (trừ khi đang mở form nhập)
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      if (document.querySelector('.sheet-overlay')) { ui.toast('Đã có bản mới — đóng form rồi tải lại trang'); return; }
+      reloading = true;
+      location.reload();
+    });
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+        reg.update();
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); });
+      }).catch(() => {});
+    });
   }
 })(window.App);
 

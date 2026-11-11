@@ -1,6 +1,6 @@
 /* Service worker: cache toàn bộ file để app chạy offline.
    Khi sửa code, tăng VERSION để điện thoại tải bản mới. */
-const VERSION = 'v2';
+const VERSION = 'v8';
 const CACHE = 'so-diem-bai-' + VERSION;
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg'];
 
@@ -15,14 +15,16 @@ self.addEventListener('activate', (e) => {
       .then(() => self.clients.claim()));
 });
 
-// Ưu tiên mạng (để luôn có bản mới khi online), mất mạng thì dùng cache.
+// Ưu tiên mạng (luôn lấy bản mới nhất, bỏ qua cache HTTP của trình duyệt), mất mạng thì dùng cache.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-store' })
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+        }
         return res;
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('index.html'))));
